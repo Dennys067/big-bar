@@ -142,3 +142,10 @@ create policy canc_gravar on public.cancelamentos for insert to authenticated wi
 drop policy if exists canc_ler on public.cancelamentos;
 create policy canc_ler on public.cancelamentos for select to authenticated using (public.meu_papel() = 'dono');
 select 'ok' as pronto;
+
+-- geral (equipe, histórico, cancelados do painel): todos leem, só dono e caixa gravam
+drop policy if exists geral_eq on public.pdv_geral;
+drop policy if exists geral_ler on public.pdv_geral;
+create policy geral_ler on public.pdv_geral for select to authenticated using (public.meu_papel() is not null);
+drop policy if exists geral_mudar on public.pdv_geral;
+create policy geral_mudar on public.pdv_geral for all to authenticated using (public.meu_papel() in ('dono','caixa')) with check (public.meu_papel() in ('dono','caixa'));

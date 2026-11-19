@@ -8,7 +8,7 @@
 (function(){
 'use strict';
 var SB_URL='https://uwyoosmjnghokpdrmumk.supabase.co',SB_CHAVE='sb_publishable_uGEzmDjXXCcXyUz89nVPcA_GFhCKAj-';
-var K={site:'painelBig.v1',pdv:'painelBig.pdv.v1',fin:'painelBig.fin.v1',entrou:'painelBig.entrou',perfil:'painelBig.perfil',fila:'painelBig.fila.v1',acesso:'painelBig.acesso'};
+var K={filaDe:'painelBig.fila.uid',filaOutro:'painelBig.fila.outro',site:'painelBig.v1',pdv:'painelBig.pdv.v1',fin:'painelBig.fin.v1',entrou:'painelBig.entrou',perfil:'painelBig.perfil',fila:'painelBig.fila.v1',acesso:'painelBig.acesso'};
 window.BIG_REAL=true;
 
 /* link do convite ou de "esqueci a senha": guarda o tipo antes do Supabase limpar o endereço */
@@ -50,9 +50,9 @@ var usuario=null,acesso=null,iniciou=false,ouvindo=false;
 var ultimo={site:null,fin:null,geral:null,caixa:null,mesas:{}}; /* versão mais nova que este aparelho conhece (banco + fila) */
 function pode(t){var p=acesso&&acesso.papel;
   if(t==='site')return p==='dono';
-  if(t==='fin')return p==='dono'||p==='caixa';
+  if(t==='fin')return p==='dono';
   if(t==='caixa')return p==='dono'||p==='caixa';
-  if(t==='dias')return p==='dono'||p==='caixa';
+  if(t==='dias'||t==='geral')return p==='dono'||p==='caixa';
   return !!p;}
 
 /* ---------- avisos ---------- */
@@ -72,7 +72,13 @@ document.addEventListener('DOMContentLoaded',prende);prende();
 /* ---------- fila de envio (sobrevive a recarregar a página) ---------- */
 var fila=ler(K.fila)||{},enviando=false,tentativas=0,timer=null,seq=0;
 function salvaFila(){LS.set(K.fila,JSON.stringify(fila));mostraFaixa();}
-function enfileira(chave,op){op.n=Date.now()+'-'+(++seq);fila[chave]=op;salvaFila();envia();}
+function enfileira(chave,op){op.n=Date.now()+'-'+(++seq);fila[chave]=op;if(usuario)LS.set(K.filaDe,usuario.id);salvaFila();envia();}
+/* a fila é de quem lançou: se outra pessoa entrar neste aparelho, a fila fica guardada à parte e só sobe quando o dono dela entrar */
+function filaDoLogin(uid){var de=LS.get(K.filaDe),outro=ler(K.filaOutro);
+  if(Object.keys(fila).length&&de&&de!==uid){LS.set(K.filaOutro,JSON.stringify({uid:de,fila:fila}));fila={};salvaFila();}
+  else if(outro&&outro.uid===uid&&!Object.keys(fila).length){fila=outro.fila||{};LS.del(K.filaOutro);salvaFila();}
+  LS.set(K.filaDe,uid);
+  if(ler(K.filaOutro))net('Tem lançamentos de outro login guardados neste aparelho. Eles sobem quando essa pessoa entrar aqui de novo.');}
 function envia(){
   if(enviando||!usuario)return;var ks=Object.keys(fila);if(!ks.length){tentativas=0;mostraFaixa();return;}
   enviando=true;var k=ks[0],op=fila[k];
@@ -127,7 +133,7 @@ function mudou(tipo){
       else enfileira(tipo,{t:tipo,id:1,dados:d});}return;}
   if(tipo!=='pdv')return;
   var P=ler(K.pdv);if(!P)return;var p=partesPDV(P),c2;
-  c2=canon(p.geral);if(c2!==ultimo.geral){ultimo.geral=c2;enfileira('geral',{t:'pdv_geral',id:1,dados:p.geral});}
+  c2=canon(p.geral);if(c2!==ultimo.geral&&pode('geral')){ultimo.geral=c2;enfileira('geral',{t:'pdv_geral',id:1,dados:p.geral});}
   c2=canon(p.caixa);if(c2!==ultimo.caixa&&pode('caixa')){ultimo.caixa=c2;enfileira('caixa',{t:'pdv_caixa',id:1,dados:p.caixa});}
   Object.keys(p.mesas).forEach(function(k){var cm=canon(p.mesas[k]);if(cm!==ultimo.mesas[k]){ultimo.mesas[k]=cm;enfileira('mesa:'+k,{t:'pdv_mesas',id:k,dados:p.mesas[k]});}});
   Object.keys(ultimo.mesas).forEach(function(k){if(!(k in p.mesas)){delete ultimo.mesas[k];enfileira('mesa:'+k,{t:'pdv_mesas',id:k,apagar:true});}});
@@ -135,7 +141,12 @@ function mudou(tipo){
 /* guarda o dia fechado com todas as vendas, movimentos e cancelamentos */
 function arquivarDia(dia){if(!usuario||!pode('dias'))return;
   var data=(dia.caixa&&dia.caixa.data)||new Date().toISOString().slice(0,10),id='dia-'+data+'-'+Date.now().toString(36);
-  enfileira('dia:'+id,{t:'dias_fechados',id:id,data:data,dados:dia,por:dia.fechadoPor||''});}
+  enfileira('dia:'+id,{t:'dias_fechados',id:id,data:data,dados:dia,por:dia.fechadoPor||''});return id;}
+/* dono: traz pro financeiro os dias que o caixa fechou (o caixa não lê nem grava o financeiro) */
+var importando=false;
+function importaDias(){if(!usuario||!acesso||acesso.papel!=='dono'||importando||!window.__bigImportarDias)return;importando=true;
+  sb.from('dias_fechados').select('id,dados').then(function(r){importando=false;if(r.error||!r.data)return;
+    window.__bigImportarDias(r.data.map(function(l){return {id:l.id,dados:limpa(l.dados)};}));},function(){importando=false;});}
 
 function cancelou(c){if(!usuario)return;var id='c-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);
   enfileira('canc:'+id,{t:'cancelamentos',id:id,data:c.data,dados:c});}
@@ -183,7 +194,7 @@ function atualizaTudo(){if(!iniciou||!usuario||atualizando)return;
   atualizando=buscaTudo().then(function(){
     if(ultimo.site)aplicar('site',JSON.parse(ultimo.site));
     if(ultimo.fin&&pode('fin'))aplicar('fin',JSON.parse(ultimo.fin));
-    aplicaPDV();}).catch(function(e){if(window.console)console.warn('[big-sync]',e);}).then(function(){atualizando=null;});}
+    aplicaPDV();importaDias();}).catch(function(e){if(window.console)console.warn('[big-sync]',e);}).then(function(){atualizando=null;});}
 var canal=null;
 function ouvir(){if(ouvindo)return;ouvindo=true;var primeira=true;
   canal=sb.channel('painel');
@@ -212,10 +223,10 @@ function abrir(faltando){
   if(iniciou)return;iniciou=true;tiraCortina();
   window.__bigApp();
   if(acesso&&acesso.papel==='dono')(faltando||[]).forEach(function(t){ultimo[t]=null;if(window.__bigSalvar)window.__bigSalvar(t==='geral'||t==='caixa'?'pdv':t);});
-  if(usuario){ouvir();envia();if(window.__bigEquipe&&acesso&&acesso.papel!=='dono')window.__bigEquipe(acesso);}
+  if(usuario){ouvir();envia();importaDias();if(window.__bigEquipe&&acesso&&acesso.papel==='caixa')window.__bigEquipe(acesso);}
 }
 function comecar(u,offline){
-  usuario=u;LS.set(K.entrou,'1');
+  filaDoLogin(u.id);usuario=u;LS.set(K.entrou,'1');
   if(acesso.papel!=='dono')LS.set(K.perfil,JSON.stringify({tipo:acesso.papel,nome:acesso.nome}));
   document.documentElement.classList.toggle('perfil-fixo',acesso.papel!=='dono');
   preparaLocal();
@@ -259,6 +270,18 @@ function caixaCentral(titulo,texto){
   c.querySelector('h2').textContent=titulo;c.querySelector('p').textContent=texto;
   fundo.appendChild(c);var por=function(){document.body.appendChild(fundo);};if(document.body)por();else document.addEventListener('DOMContentLoaded',por);
   return c;}
+/* olhinho: mostra ou esconde a senha */
+var OLHO='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+var OLHO_F='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+function olhinho(inp){if(!inp||inp.dataset.olho)return;inp.dataset.olho='1';
+  var w=document.createElement('span');w.style.cssText='position:relative;display:block';inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  inp.style.paddingRight='52px';inp.style.width='100%';inp.style.boxSizing='border-box';
+  var b=document.createElement('button');b.type='button';b.setAttribute('aria-label','Mostrar senha');b.setAttribute('aria-pressed','false');b.innerHTML=OLHO;
+  b.style.cssText='position:absolute;right:2px;top:50%;transform:translateY(-50%);width:48px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;color:#A8711A;cursor:pointer;padding:0;margin:0;box-shadow:none;min-height:0';
+  b.addEventListener('click',function(){var ver=inp.type==='password';inp.type=ver?'text':'password';b.innerHTML=ver?OLHO_F:OLHO;
+    b.setAttribute('aria-label',ver?'Esconder senha':'Mostrar senha');b.setAttribute('aria-pressed',String(ver));inp.focus();});
+  w.appendChild(b);}
+document.addEventListener('DOMContentLoaded',function(){olhinho(document.getElementById('senha'));});
 function telaSenha(u){
   tiraCortina();
   var c=caixaCentral(linkTipo==='invite'?'Bem-vindo ao painel do Big':'Crie uma senha nova','Crie sua senha pra entrar no painel'+(u.email?' com '+u.email:'')+'. Use pelo menos 8 letras ou números.');
@@ -281,12 +304,13 @@ function telaSenha(u){
       location.hash='';location.reload();
     }).catch(function(err){bt.disabled=false;bt.textContent='Salvar senha e entrar';er.textContent=erro(err);});
   });
+  olhinho(f.querySelector('#big-s1'));olhinho(f.querySelector('#big-s2'));
   setTimeout(function(){var i=f.querySelector('#big-s1');if(i)i.focus();},50);
 }
 
 
 /* ---------- acessos ao painel (só o dono): gera link, manda no WhatsApp, tira e devolve acesso ---------- */
-function chamaEquipe(corpo){corpo.voltar=location.origin+location.pathname;
+function chamaEquipe(corpo){
   return sb.functions.invoke('equipe',{body:corpo}).then(function(r){
     if(r.error){var c=r.error.context;if(c&&c.json)return c.json().then(function(j){throw new Error(j.erro||r.error.message);},function(){throw r.error;});throw r.error;}
     if(r.data&&r.data.erro)throw new Error(r.data.erro);return r.data;});}
@@ -341,7 +365,7 @@ function acessos(el){
   el.__lista=carregaLista;
 }
 /* ---------- começo ---------- */
-function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.acesso].forEach(LS.del);}
+function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.filaDe,K.acesso].forEach(LS.del);}
 function inicio(){sb.auth.getSession().then(function(r){
   var s=r&&r.data&&r.data.session;
   if(!s&&r&&r.error){var a=ler(K.acesso);if(a&&a.uid){acesso={papel:a.papel,nome:a.nome};comecar({id:a.uid},true);mostraFaixa();return;}} /* sem internet pra renovar o login */
@@ -368,6 +392,7 @@ function erro(err){var c=String(err&&(err.code||'')),m=String(err&&(err.message|
 window.BIG_SYNC={
   mudou:mudou,arquivarDia:arquivarDia,cancelou:cancelou,erro:erro,
   usuario:function(){return usuario;},
+  podeFin:function(){return pode('fin');},
   perfilFixo:function(){return acesso&&acesso.papel!=='dono'?{tipo:acesso.papel,nome:acesso.nome}:null;},
   pendentes:function(){return Object.keys(fila).length;},
   acessos:acessos,

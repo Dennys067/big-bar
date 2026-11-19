@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     if (!eu || !eu.ativo || eu.papel !== 'dono') return json({ erro: 'Só o dono pode mexer nos acessos.' }, 403);
 
     const b = await req.json().catch(() => ({}));
-    const voltar = typeof b.voltar === 'string' && b.voltar.startsWith('http') ? b.voltar : PAINEL;
+    const voltar = PAINEL; // links sempre voltam para o painel publicado
 
     if (b.acao === 'listar') {
       const { data, error } = await admin.from('equipe_acesso').select('user_id,email,nome,papel,ativo').order('criado_em');

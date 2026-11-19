@@ -915,8 +915,8 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="sb/supabase.js?v=7ade3092"></script>
-<script src="big-sync.js?v=7ade3092"></script>
+<script src="sb/supabase.js?v=cfaa3cbd"></script>
+<script src="big-sync.js?v=cfaa3cbd"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1675,7 +1675,7 @@ function renderFechamento(){
 document.getElementById('fech-corpo').addEventListener('click',function(e){
   var b=e.target.closest('[data-acao]');if(!b)return;
   if(b.dataset.acao==='f-encerrar'){encerrarAberto=!encerrarAberto;renderFechamento();var x=document.querySelector(encerrarAberto?'[data-acao="f-encerrar-sim"]':'[data-acao="f-encerrar"]');if(x)x.focus();}
-  else if(b.dataset.acao==='f-encerrar-sim'){var t=totaisDia();if(window.BIG_SYNC)BIG_SYNC.arquivarDia(JSON.parse(JSON.stringify({caixa:P.caixa,cancelados:P.cancelados||[],fechadoPor:PF().nome||PF().tipo,fechadoEm:new Date().toISOString()})));if(typeof finFecharDia==='function')finFecharDia();P.historico.unshift({data:new Date().toLocaleDateString('pt-BR'),total:t.tot,n:t.n,gaveta:t.gaveta});P.historico=P.historico.slice(0,30);
+  else if(b.dataset.acao==='f-encerrar-sim'){var t=totaisDia();var idDia=window.BIG_SYNC?BIG_SYNC.arquivarDia(JSON.parse(JSON.stringify({caixa:P.caixa,cancelados:P.cancelados||[],fechadoPor:PF().nome||PF().tipo,fechadoEm:new Date().toISOString()}))):null;if(idDia&&BIG_SYNC.podeFin()){F.importados=(F.importados||[]).concat(idDia);}if(typeof finFecharDia==='function'&&(!window.BIG_SYNC||BIG_SYNC.podeFin()))finFecharDia();P.historico.unshift({data:new Date().toLocaleDateString('pt-BR'),total:t.tot,n:t.n,gaveta:t.gaveta});P.historico=P.historico.slice(0,30);
     P.caixa={data:hojeStr(),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};P.cancelados=[];ultimaVenda=null;encerrarAberto=false;gp();toast('Dia encerrado!','Total '+R(t.tot));location.hash='#caixa';}
 });
 
@@ -2107,6 +2107,10 @@ window.__bigAplicar=function(t,d){
   else if(t==='fin'){if(!d||!d.dias)return;F=d;}
   redesenhar();};
 /* quem entra como garçom ou caixa aparece na lista da equipe */
+window.__bigImportarDias=function(lista){var feito=F.importados||(F.importados=[]),mudou=false;
+  lista.forEach(function(x){if(feito.indexOf(x.id)>=0)return;var c=x.dados&&x.dados.caixa;feito.push(x.id);mudou=true;
+    if(c&&((c.vendas||[]).length||(c.movs||[]).length))F.dias.push(vendasParaDia(c.vendas||[],c.movs||[],c.data||hojeStr()));});
+  if(mudou){gf();redesenhar();}};
 window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac.nome;})){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.papel});gp();}};
 rota();
 };
