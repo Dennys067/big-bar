@@ -423,7 +423,6 @@ a{color:inherit}
   <p class="legal">Venda de bebida alcoólica proibida para menores de 18 anos. Se beber, não dirija.</p>
 </footer>
 
-<a class="area-dono" href="admin.html">Área do dono →</a>
 <script>
 window.BIG_RENDER=function(d,B,doPainel){
   var e=B.esc;
@@ -485,7 +484,7 @@ window.BIG_RENDER=function(d,B,doPainel){
    Num site de verdade isso viria de um servidor; aqui é protótipo. */
 (function(){
 'use strict';
-var KEY='painelBig.v1'||'painelBig.v1';
+var KEY='bigSite.cache'||'painelBig.v1';
 function it(n,d,p){return {nome:n,desc:d||'',preco:p==null?'':p,esgotado:false};}
 function PADRAO(){return {
   aberto:true,
@@ -568,7 +567,7 @@ B.links=function(d){var w=B.wa(d.info.whatsapp),ig=B.ig(d.info.instagram);
   B.$$('a[href^="https://wa.me/"]').forEach(function(a){if(w)a.href=w;});
   B.$$('a[href^="https://instagram.com/"]').forEach(function(a){a.href='https://instagram.com/'+ig.slice(1);if(/^@/.test(a.textContent.trim()))a.textContent=ig;});};
 
-function rodar(){var r=ler();try{window.BIG_RENDER(r.dados,B,r.doPainel);}catch(e){if(window.console)console.error(e);}}
+function rodar(){var r=ler();window.BIG_RODAR=rodar;try{window.BIG_RENDER(r.dados,B,r.doPainel);}catch(e){if(window.console)console.error(e);}}
 window.addEventListener('storage',function(e){if(e.key===KEY)rodar();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)rodar();});
 window.addEventListener('pageshow',rodar);
@@ -576,6 +575,16 @@ rodar();
 setInterval(function(){var r=ler();var a=B.agora(r.dados);var el=document.getElementById('big-agora');if(el&&el.dataset.txt!==a.txt)rodar();},60000);
 })();
 
+</script>
+
+<script>
+/* site lê o cardápio, horários, shows e avisos que o painel salvou no banco (leitura pública) */
+(function(){var URL='https://firestore.googleapis.com/v1/projects/big-bar-e-prosa/databases/(default)/documents/publico/site';
+function busca(){fetch(URL,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+  var v=j&&j.fields&&j.fields.json&&j.fields.json.stringValue;if(!v)return;
+  try{if(localStorage.getItem('bigSite.cache')===v)return;localStorage.setItem('bigSite.cache',v);}catch(e){}
+  if(window.BIG_RODAR)window.BIG_RODAR();}).catch(function(){});}
+busca();setInterval(busca,60000);document.addEventListener('visibilitychange',function(){if(!document.hidden)busca();});})();
 </script>
 </body>
 </html>
