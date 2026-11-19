@@ -14,18 +14,24 @@ const PAINEL = 'https://dennys067.github.io/big-bar/letreiro/admin.html';
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default), { auth: { persistSession: false } });
+    const URL = Deno.env.get('SUPABASE_URL')!;
+    // auth admin (gerar link, bloquear login): chave de serviço
+    const admin = createClient(URL, (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default), { auth: { persistSession: false, autoRefreshToken: false } });
     const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: quem, error: qe } = await admin.auth.getUser(jwt);
     if (qe || !quem?.user) return json({ erro: 'Entre de novo no painel.' }, 401);
-    const { data: eu } = await admin.from('equipe_acesso').select('papel,ativo').eq('user_id', quem.user.id).maybeSingle();
+    // tabela da equipe: com o login de quem chamou (o banco confere se é dono)
+    const chavePub = Deno.env.get('SUPABASE_ANON_KEY') || JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '{}').default;
+    const db = createClient(URL, chavePub, { global: { headers: { Authorization: 'Bearer ' + jwt } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: eu, error: ee } = await db.from('equipe_acesso').select('papel,ativo').eq('user_id', quem.user.id).maybeSingle();
+    if (ee) return json({ erro: 'Não deu pra conferir seu acesso: ' + ee.message }, 500);
     if (!eu || !eu.ativo || eu.papel !== 'dono') return json({ erro: 'Só o dono pode mexer nos acessos.' }, 403);
 
     const b = await req.json().catch(() => ({}));
     const voltar = PAINEL; // links sempre voltam para o painel publicado
 
     if (b.acao === 'listar') {
-      const { data, error } = await admin.from('equipe_acesso').select('user_id,email,nome,papel,ativo').order('criado_em');
+      const { data, error } = await db.from('equipe_acesso').select('user_id,email,nome,papel,ativo').order('criado_em');
       if (error) return json({ erro: error.message }, 400);
       return json({ equipe: data, eu: quem.user.id });
     }
@@ -45,7 +51,7 @@ Deno.serve(async (req) => {
       if (r.error || !r.data?.user) return json({ erro: r.error?.message || 'Não deu pra gerar o link.' }, 400);
       const uid = r.data.user.id;
       if (uid === quem.user.id && papel !== 'dono') return json({ erro: 'Você não pode tirar o seu próprio acesso de dono.' }, 400);
-      const { error: ie } = await admin.from('equipe_acesso').upsert({ user_id: uid, email, nome, papel, ativo: true });
+      const { error: ie } = await db.from('equipe_acesso').upsert({ user_id: uid, email, nome, papel, ativo: true });
       if (ie) return json({ erro: ie.message }, 400);
       await admin.auth.admin.updateUserById(uid, { ban_duration: 'none' });
       return json({ link: r.data.properties.action_link });
@@ -56,7 +62,7 @@ Deno.serve(async (req) => {
       if (!uid) return json({ erro: 'Falta a pessoa.' }, 400);
       if (uid === quem.user.id) return json({ erro: 'Você não pode tirar o seu próprio acesso.' }, 400);
       const ativo = !!b.ativo;
-      const { error } = await admin.from('equipe_acesso').update({ ativo }).eq('user_id', uid);
+      const { error } = await db.from('equipe_acesso').update({ ativo }).eq('user_id', uid);
       if (error) return json({ erro: error.message }, 400);
       // sem acesso: derruba o login também (vale em todos os aparelhos assim que o token vencer)
       await admin.auth.admin.updateUserById(uid, { ban_duration: ativo ? 'none' : '876000h' });

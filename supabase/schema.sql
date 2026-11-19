@@ -154,3 +154,10 @@ create policy geral_mudar on public.pdv_geral for all to authenticated using (pu
 drop policy if exists fin_eq on public.fin;
 drop policy if exists fin_dono on public.fin;
 create policy fin_dono on public.fin for all to authenticated using (public.meu_papel() = 'dono') with check (public.meu_papel() = 'dono');
+
+-- o dono cadastra e muda a equipe (pela função equipe, com o login dele)
+grant insert, update on public.equipe_acesso to authenticated;
+drop policy if exists eq_dono_inserir on public.equipe_acesso;
+create policy eq_dono_inserir on public.equipe_acesso for insert to authenticated with check (public.meu_papel() = 'dono');
+drop policy if exists eq_dono_mudar on public.equipe_acesso;
+create policy eq_dono_mudar on public.equipe_acesso for update to authenticated using (public.meu_papel() = 'dono') with check (public.meu_papel() = 'dono');
