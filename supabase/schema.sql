@@ -149,3 +149,8 @@ drop policy if exists geral_ler on public.pdv_geral;
 create policy geral_ler on public.pdv_geral for select to authenticated using (public.meu_papel() is not null);
 drop policy if exists geral_mudar on public.pdv_geral;
 create policy geral_mudar on public.pdv_geral for all to authenticated using (public.meu_papel() in ('dono','caixa')) with check (public.meu_papel() in ('dono','caixa'));
+
+-- financeiro: só o dono (o caixa fecha o dia em dias_fechados e o painel do dono importa)
+drop policy if exists fin_eq on public.fin;
+drop policy if exists fin_dono on public.fin;
+create policy fin_dono on public.fin for all to authenticated using (public.meu_papel() = 'dono') with check (public.meu_papel() = 'dono');
