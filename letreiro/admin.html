@@ -631,6 +631,8 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
   .recibo{box-shadow:none;border:0;max-width:none;background:#fff;padding:0}
   .recibo::before{display:none}
 }
+html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
+#acessos{margin-bottom:1.4rem}#acessos .acs-txt{margin:.2rem 0 1rem;font-size:1.05rem}#acessos .eq-it small{display:block;font:400 .85rem/1.2 var(--f-texto);text-transform:none;letter-spacing:0;opacity:.75}#acessos .acs-off{opacity:.55}#acessos .seg{margin-bottom:.9rem;display:inline-flex}#acessos .acs-bts{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.6rem}#acessos .acs-erro{color:#B3261E;font-weight:700}#acs-link{margin-top:1rem}
 .restaurar{display:none!important}
 </style>
 </head>
@@ -664,6 +666,7 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
       <label class="campo"><span>E-mail</span><input type="email" id="email" inputmode="email" autocomplete="username" placeholder="seu@email.com"></label>
       <label class="campo"><span>Senha</span><input type="password" id="senha" autocomplete="current-password" placeholder="••••••"></label>
       <button class="btn ambar" type="submit">Entrar</button>
+      <button class="mini" type="button" id="esqueci" style="margin-top:.8rem">Esqueci a senha</button>
     </form>
     <span class="carimbo prototipo">Semana de teste<small>acesso só da equipe</small></span>
   </section>
@@ -874,6 +877,7 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
   <!-- ===== EQUIPE ===== -->
   <section class="tela" id="t-equipe" aria-labelledby="h-equipe" hidden>
     <div class="tela-cab"><h2 class="faixa" id="h-equipe" tabindex="-1">Equipe</h2><p class="dica">Quem trabalha no Big.</p></div>
+    <div class="parede" id="acessos" hidden></div>
     <div class="equipe-grade">
       <div class="parede">
         <h3>Garçons e caixas</h3>
@@ -911,9 +915,7 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="fb/firebase-app-compat.js"></script>
-<script src="fb/firebase-auth-compat.js"></script>
-<script src="fb/firebase-firestore-compat.js"></script>
+<script src="sb/supabase.js"></script>
 <script src="big-sync.js"></script>
 <script>
 window.__bigApp=function(){
@@ -1007,12 +1009,13 @@ function rota(){
 window.addEventListener('hashchange',rota);
 
 /* ---------- Entrar ---------- */
+document.getElementById('esqueci').addEventListener('click',function(){var em=document.getElementById('email').value.trim();if(!em){toast('Escreva seu e-mail','Depois toque em Esqueci a senha.',true);document.getElementById('email').focus();return;}BIG_SYNC.esqueci(em).then(function(){toast('Confira seu e-mail','Se esse e-mail tiver acesso, chega um link pra criar senha nova.');},function(err){toast('Não deu',BIG_SYNC.erro(err),true);});});
 document.getElementById('form-entrar').addEventListener('submit',function(e){
   e.preventDefault();
   var em=document.getElementById('email').value.trim(),se=document.getElementById('senha').value,bt=e.target.querySelector('button[type=submit]');
   if(!em||!se){toast('Falta preencher','E-mail e senha.',true);return;}
   bt.disabled=true;bt.textContent='Entrando…';
-  BIG_SYNC.entrar(em,se).then(function(){document.getElementById('senha').value='';gravarPerfil(null);location.hash='#perfil';location.reload();})
+  BIG_SYNC.entrar(em,se).then(function(){document.getElementById('senha').value='';gravarPerfil(null);location.hash='';location.reload();})
     .catch(function(err){bt.disabled=false;bt.textContent='Entrar';toast('Não deu pra entrar',BIG_SYNC.erro(err),true);});
 });
 
@@ -1168,7 +1171,7 @@ document.getElementById('t-infos').addEventListener('input',function(e){var k=e.
 document.addEventListener('click',function(e){
   var b=e.target.closest('[data-acao]');if(!b)return;var a=b.dataset.acao;
   if(a==='salvar'){salvar();}
-  else if(a==='sair'){BIG_SYNC.sair().then(function(){location.hash='#entrar';location.reload();});}
+  else if(a==='sair'){BIG_SYNC.sair().then(function(){location.hash='#entrar';location.reload();},function(){toast('Ainda não dá pra sair','Tem coisa guardada neste aparelho esperando a internet pra subir. Conecte e tente de novo.',true);});}
   else if(a==='trocar-perfil'){gravarPerfil(null);perfilEscolhido=null;if(location.hash==='#perfil')rota();else location.hash='#perfil';}
   else if(a==='novo-show'){var s={id:id('s'),data:proxima(5),hora:'21:00',artista:'',estilo:'',foto:''};S.shows.push(s);renderShows();marcarSujo(true);var inp=sl.querySelector('[data-id="'+s.id+'"] [data-s="artista"]');if(inp)inp.focus();}
   else if(a==='restaurar'){document.getElementById('restaurar-certeza').hidden=false;b.setAttribute('aria-expanded','true');document.querySelector('[data-acao="restaurar-nao"]').focus();}
@@ -1216,7 +1219,7 @@ function agora(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes(
 function hojeStr(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 function plural(n,s,p){return n+' '+(n===1?s:p);}
 
-function lerPerfil(){try{var p=JSON.parse(localStorage.getItem(KEY_PF));return p&&PERFIS[p.tipo]?p:null;}catch(e){return null;}}
+function lerPerfil(){var fx=window.BIG_SYNC&&BIG_SYNC.perfilFixo();if(fx)return fx;try{var p=JSON.parse(localStorage.getItem(KEY_PF));return p&&PERFIS[p.tipo]?p:null;}catch(e){return null;}}
 function gravarPerfil(p){try{p?localStorage.setItem(KEY_PF,JSON.stringify(p)):localStorage.removeItem(KEY_PF);}catch(e){}}
 function PF(){return lerPerfil()||{tipo:'dono',nome:'Big'};}
 
@@ -1474,7 +1477,7 @@ tm.addEventListener('click',function(e){
     if(a==='m-menos'&&l.qtd>1)l.qtd--;else{m.itens.splice(m.itens.indexOf(l),1);}
     limpaVazia(mesaAtual);gp();manterFoco(function(){renderMesaTudo();renderPickItens();});
     if(!document.activeElement||document.activeElement===document.body)document.getElementById('h-mesa').focus();}
-  else if(a==='m-estornar'&&l){if(!P.cancelados)P.cancelados=[];P.cancelados.push({data:hojeStr(),hora:agora(),mesa:mesaNome(mesaAtual),nome:l.nome,qtd:1,valor:unit(l),pedidoPor:l.por||'',canceladoPor:PF().nome||PF().tipo});if(l.qtd>1)l.qtd--;else m.itens.splice(m.itens.indexOf(l),1);limpaVazia(mesaAtual);gp();renderMesaTudo();renderPickItens();toast('Item cancelado','1 × '+l.nome);document.getElementById('h-mesa').focus();}
+  else if(a==='m-estornar'&&l){if(!P.cancelados)P.cancelados=[];var cc={data:hojeStr(),hora:agora(),mesa:mesaNome(mesaAtual),nome:l.nome,qtd:1,valor:unit(l),pedidoPor:l.por||'',canceladoPor:PF().nome||PF().tipo};P.cancelados.push(cc);if(window.BIG_SYNC)BIG_SYNC.cancelou(cc);if(l.qtd>1)l.qtd--;else m.itens.splice(m.itens.indexOf(l),1);limpaVazia(mesaAtual);gp();renderMesaTudo();renderPickItens();toast('Item cancelado','1 × '+l.nome);document.getElementById('h-mesa').focus();}
   else if(a==='m-sabor'&&l){var gs=grupoEspeto(/sabor/i),it=gs&&gs.itens[+b.dataset.s];if(it){l.sabor=l.sabor===it.nome?'':it.nome;gp();manterFoco(renderComanda);}}
   else if(a==='m-adic'&&l){var ga=grupoEspeto(/adicion/i),ad=ga&&ga.itens[+b.dataset.a];if(ad){var k=-1;l.adic.forEach(function(x,ix){if(x.nome===ad.nome)k=ix;});if(k>=0)l.adic.splice(k,1);else l.adic.push({nome:ad.nome,preco:cent(ad.preco)});gp();manterFoco(function(){renderComanda();renderMesaBarra();});}}
   else if(a==='m-enviar'){
@@ -1678,7 +1681,7 @@ document.getElementById('fech-corpo').addEventListener('click',function(e){
 
 /* ---------- Equipe ---------- */
 var eqFn='garcom';
-function renderEquipe(){
+function renderEquipe(){if(window.BIG_SYNC)BIG_SYNC.acessos(document.getElementById('acessos'));
   document.getElementById('eq-lista').innerHTML=P.equipe.length?P.equipe.map(function(p){var nm=esc(p.nome);
     return '<li class="eq-it" data-p="'+p.id+'"><span class="n">'+nm+'</span><span class="fn'+(p.fn==='caixa'?' cx':'')+'">'+(p.fn==='caixa'?'Caixa':'Garçom')+'</span>'+
       '<button class="acao apagar" type="button" data-acao="eq-apagar">Tirar<span class="vh"> '+nm+'</span></button>'+
@@ -2103,6 +2106,8 @@ window.__bigAplicar=function(t,d){
   else if(t==='pdv'){if(!d||!d.mesas||!d.caixa)return;if(!d.cancelados)d.cancelados=[];P=d;}
   else if(t==='fin'){if(!d||!d.dias)return;F=d;}
   redesenhar();};
+/* quem entra como garçom ou caixa aparece na lista da equipe */
+window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac.nome;})){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.papel});gp();}};
 rota();
 };
 </script>

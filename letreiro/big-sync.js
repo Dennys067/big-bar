@@ -1,120 +1,380 @@
-/* ===== Big Bar e Prosa — liga o painel ao banco (Firebase) =====
+/* ===== Big Bar e Prosa — liga o painel ao banco (Supabase) =====
    O painel continua lendo e gravando no localStorage (cópia no aparelho, funciona sem internet).
    Esta camada:
-   1) só deixa o painel abrir depois que o login termina e os dados do banco chegam;
-   2) manda pro banco cada coisa salva no aparelho (site, mesas, caixa, financeiro);
-   3) traz na hora o que os outros aparelhos mudaram.
-   Mesas ficam uma por documento, pra dois garçons não apagarem o pedido um do outro. */
+   1) só abre o painel depois do login, com o papel da pessoa (dono, caixa ou garçom) vindo do banco;
+   2) põe numa fila tudo que foi salvo no aparelho e manda pro banco; sem internet, a fila espera e sobe depois;
+   3) traz na hora o que os outros aparelhos mudaram (tempo real) e confere tudo de novo quando a conexão volta.
+   Mesas ficam uma por linha, pra dois garçons não apagarem o pedido um do outro. */
 (function(){
 'use strict';
-var CFG={apiKey:"AIzaSyCmraCM6Gqe2tGynNxCAAXdub6gc9R-ra0",authDomain:"big-bar-e-prosa.firebaseapp.com",projectId:"big-bar-e-prosa",storageBucket:"big-bar-e-prosa.firebasestorage.app",messagingSenderId:"499611988284",appId:"1:499611988284:web:567c1430b2fe48ecd5ee39"};
-var K={site:'painelBig.v1',pdv:'painelBig.pdv.v1',fin:'painelBig.fin.v1',entrou:'painelBig.entrou',perfil:'painelBig.perfil'};
+var SB_URL='https://uwyoosmjnghokpdrmumk.supabase.co',SB_CHAVE='sb_publishable_uGEzmDjXXCcXyUz89nVPcA_GFhCKAj-';
+var K={site:'painelBig.v1',pdv:'painelBig.pdv.v1',fin:'painelBig.fin.v1',entrou:'painelBig.entrou',perfil:'painelBig.perfil',fila:'painelBig.fila.v1',acesso:'painelBig.acesso'};
 window.BIG_REAL=true;
-firebase.initializeApp(CFG);
-var auth=firebase.auth(),db=firebase.firestore();
-if(/[?&]emu=1/.test(location.search)){auth.useEmulator('http://127.0.0.1:9099');db.useEmulator('127.0.0.1',8080);} /* só para teste local */
-try{db.enablePersistence({synchronizeTabs:true}).catch(function(){});}catch(e){}
+
+/* link do convite ou de "esqueci a senha": guarda o tipo antes do Supabase limpar o endereço */
+var H=location.hash||'';
+var linkTipo=(H.match(/[#&]type=(invite|recovery)/)||[])[1]||'';
+var linkErro=/[#&]error=/.test(H)?decodeURIComponent(((H.match(/error_description=([^&]+)/)||[])[1]||'').replace(/\+/g,' ')):'';
+var sb=window.BIG_SB_FAKE||supabase.createClient(SB_URL,SB_CHAVE,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}});
 
 var LS={get:function(k){try{return localStorage.getItem(k);}catch(e){return null;}},
         set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}},
         del:function(k){try{localStorage.removeItem(k);}catch(e){}}};
-var docSite=db.doc('publico/site'),docFin=db.doc('fin/geral'),docGeral=db.doc('pdv/geral'),docCaixa=db.doc('pdv/caixa'),colMesas=db.collection('pdv_mesas');
-var ultimo={site:null,fin:null,geral:null,caixa:null,mesas:{}}; /* o que o banco tem (JSON), pra saber o que mudou */
-var iniciou=false,usuario=null;
+function ler(k){try{return JSON.parse(LS.get(k));}catch(e){return null;}}
+/* JSON com chaves em ordem: o banco devolve as chaves em outra ordem, isso evita achar mudança onde não tem */
+function canon(v){if(v===null||typeof v!=='object')return JSON.stringify(v);
+  if(Array.isArray(v))return '['+v.map(canon).join(',')+']';
+  return '{'+Object.keys(v).sort().filter(function(k){return v[k]!==undefined;}).map(function(k){return JSON.stringify(k)+':'+canon(v[k]);}).join(',')+'}';}
 
-/* ---------- aviso de conexão ---------- */
+/* site: confere campos que vão parar dentro de atributos no painel */
+var FOTO_OK=/^(data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+\/=]+|https:\/\/[^"'<>\s`()]+)$/,ID_OK=/^[\w-]{1,60}$/,HORA_OK=/^\d{2}:\d{2}$/;
+var nLimpo=0;function nid(){return 'x'+Date.now().toString(36)+(++nLimpo);}
+/* tudo que vem do banco passa aqui: id só com letras, números, - e _; foto só imagem de verdade; horas no formato 00:00 */
+function limpa(v,chave){
+  if(Array.isArray(v))return v.map(function(x){return limpa(x);});
+  if(v&&typeof v==='object'){Object.keys(v).forEach(function(k){
+      if(/^(id|iid|pid)$/.test(k)&&v[k]!==''&&v[k]!=null&&!ID_OK.test(String(v[k])))v[k]=nid();
+      else if(k==='foto'&&v[k]&&!FOTO_OK.test(String(v[k])))v[k]='';
+      else if(/^(abre|fecha|hora|abertaEm|contaEm|abertoEm)$/.test(k)&&typeof v[k]==='string'&&v[k]&&!/^\d{1,2}:\d{2}$/.test(v[k]))v[k]='';
+      else v[k]=limpa(v[k],k);});return v;}
+  return v;}
+function limpaSite(d){if(!d||typeof d!=='object')return d;limpa(d);
+  (d.cardapio||[]).forEach(function(c){if(!ID_OK.test(String(c.id)))c.id=nid();(c.grupos||[]).forEach(function(g){if(g.id!=null&&!ID_OK.test(String(g.id)))g.id=nid();
+    (g.itens||[]).forEach(function(i){if(i.id!=null&&!ID_OK.test(String(i.id)))i.id=nid();});});});
+  (d.horarios||[]).forEach(function(h){if(!HORA_OK.test(h.abre))h.abre='17:00';if(!HORA_OK.test(h.fecha))h.fecha='00:00';});
+  (d.shows||[]).forEach(function(x){if(!ID_OK.test(String(x.id)))x.id=nid();if(x.foto&&!FOTO_OK.test(x.foto))x.foto='';});
+  return d;}
+/* versão pública do site: sem o custo dos itens */
+function publico(d){var c=JSON.parse(JSON.stringify(d));(c.cardapio||[]).forEach(function(k){(k.grupos||[]).forEach(function(g){(g.itens||[]).forEach(function(i){delete i.custo;});});});return c;}
+var usuario=null,acesso=null,iniciou=false,ouvindo=false;
+var ultimo={site:null,fin:null,geral:null,caixa:null,mesas:{}}; /* versão mais nova que este aparelho conhece (banco + fila) */
+function pode(t){var p=acesso&&acesso.papel;
+  if(t==='site')return p==='dono';
+  if(t==='fin')return p==='dono'||p==='caixa';
+  if(t==='caixa')return p==='dono'||p==='caixa';
+  if(t==='dias')return p==='dono'||p==='caixa';
+  return !!p;}
+
+/* ---------- avisos ---------- */
 var faixa=document.createElement('div');faixa.id='big-net';faixa.setAttribute('role','status');
 faixa.style.cssText='position:fixed;left:0;right:0;top:0;z-index:200;text-align:center;font:600 14px/1.3 system-ui,sans-serif;padding:6px 10px;display:none';
-function net(txt,cor){if(!txt){faixa.style.display='none';return;}faixa.textContent=txt;faixa.style.background=cor||'#F5A51B';faixa.style.color=cor?'#fff':'#0B0B0B';faixa.style.display='block';}
+var aviso={txt:'',cor:''};
+function net(txt,cor){aviso={txt:txt||'',cor:cor||''};mostraFaixa();}
+function mostraFaixa(){var t=aviso.txt,c=aviso.cor,n=Object.keys(fila).length;
+  if(!t&&n&&!navigator.onLine){t='Sem internet. '+n+(n===1?' alteração guardada':' alterações guardadas')+' neste aparelho, sobe quando voltar.';}
+  else if(!t&&!navigator.onLine)t='Sem internet. O que você lançar fica guardado e sobe quando voltar.';
+  else if(!t&&n&&tentativas>1)t='Guardando no banco… ('+n+' pendente'+(n>1?'s':'')+')';
+  if(!t){faixa.style.display='none';return;}
+  faixa.textContent=t;faixa.style.background=c||'#F5A51B';faixa.style.color=c?'#fff':'#0B0B0B';faixa.style.display='block';}
 function prende(){if(!faixa.parentNode&&document.body)document.body.appendChild(faixa);}
 document.addEventListener('DOMContentLoaded',prende);prende();
-window.addEventListener('offline',function(){net('Sem internet. O que você lançar fica guardado e sobe quando voltar.');});
-window.addEventListener('online',function(){net('');});
 
-/* ---------- gravar no banco ---------- */
-function partesPDV(P){var g={v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[]};
-  return {geral:JSON.stringify(g),caixa:JSON.stringify(P.caixa||{}),mesas:Object.keys(P.mesas||{}).reduce(function(o,k){o[k]=JSON.stringify(P.mesas[k]);return o;},{})};}
-function meta(json){return {json:json,em:firebase.firestore.FieldValue.serverTimestamp(),por:usuario?usuario.email:''};}
-function falhou(err){if(window.console)console.error('[big-sync]',err);net('Não consegui salvar no banco ('+(err&&err.code||'erro')+'). Ficou guardado neste aparelho.','#B3261E');}
+/* ---------- fila de envio (sobrevive a recarregar a página) ---------- */
+var fila=ler(K.fila)||{},enviando=false,tentativas=0,timer=null,seq=0;
+function salvaFila(){LS.set(K.fila,JSON.stringify(fila));mostraFaixa();}
+function enfileira(chave,op){op.n=Date.now()+'-'+(++seq);fila[chave]=op;salvaFila();envia();}
+function envia(){
+  if(enviando||!usuario)return;var ks=Object.keys(fila);if(!ks.length){tentativas=0;mostraFaixa();return;}
+  enviando=true;var k=ks[0],op=fila[k];
+  executa(op).then(function(res){
+    enviando=false;var e=res&&res.error;
+    if(e&&e.code==='23505'&&(op.t==='dias_fechados'||op.t==='cancelamentos'))e=null; /* já guardado antes */
+    if(e&&permanente(e)){if(fila[k]&&fila[k].n===op.n)delete fila[k];salvaFila();
+      if(window.console)console.error('[big-sync]',e);net('Seu acesso não pode salvar isso no banco ('+(e.code||e.message)+'). Ficou só neste aparelho.','#B3261E');envia();return;}
+    if(e)throw e;
+    if(fila[k]&&fila[k].n===op.n){delete fila[k];
+      if(op.juntou){var ck=op.t==='pdv_caixa'?'caixa':'geral';ultimo[ck]=canon(op.juntou);aplicaPDV();}}
+    tentativas=0;salvaFila();if(aviso.cor!=='#B3261E')net('');envia();
+  }).catch(function(err){
+    enviando=false;tentativas++;mostraFaixa();if(window.console)console.warn('[big-sync] vai tentar de novo',err);
+    if(err&&/JWT|token/i.test(err.message||err.code||''))sb.auth.refreshSession().catch(function(){});
+    clearTimeout(timer);timer=setTimeout(envia,Math.min(60000,1500*Math.pow(2,Math.min(tentativas,6))));
+  });
+}
+function juntaCaixa(meu,banco){
+  if(!banco||!meu||banco.data!==meu.data)return meu;
+  var j=JSON.parse(JSON.stringify(meu)),ids={};(j.vendas||[]).forEach(function(v){ids[v.id]=1;});
+  (banco.vendas||[]).forEach(function(v){if(!ids[v.id])j.vendas.push(v);});
+  var ms={};(j.movs||[]).forEach(function(m){ms[canon(m)]=1;});(banco.movs||[]).forEach(function(m){if(!ms[canon(m)])j.movs.push(m);});
+  return j;}
+function juntaGeral(meu,banco){
+  if(!banco||!meu)return meu;var j=JSON.parse(JSON.stringify(meu)),cs={};
+  (j.cancelados||[]).forEach(function(c){cs[canon(c)]=1;});(banco.cancelados||[]).forEach(function(c){if(!cs[canon(c)])j.cancelados.push(c);});
+  return j;}
+function executa(op){
+  if(op.t==='pdv_caixa'||op.t==='pdv_geral')return sb.from(op.t).select('dados').eq('id',1).maybeSingle().then(function(r){
+    if(r.error)return r;var b=r.data&&r.data.dados,d=op.t==='pdv_caixa'?juntaCaixa(op.dados,b):juntaGeral(op.dados,b);
+    if(canon(d)!==canon(op.dados)){op.juntou=d;}
+    return sb.from(op.t).upsert({id:1,dados:d});});
+  if(op.apagar)return sb.from(op.t).delete().eq('id',op.id);
+  if(op.t==='dias_fechados')return sb.from(op.t).insert({id:op.id,data:op.data,dados:op.dados});
+  if(op.t==='cancelamentos')return sb.from(op.t).insert({id:op.id,data:op.data,dados:op.dados});
+  return sb.from(op.t).upsert({id:op.id,dados:op.dados});
+}
+function permanente(e){var c=String(e.code||'');return c==='42501'||/^2[23]/.test(c)||c==='PGRST204'||c==='PGRST205';}
+window.addEventListener('offline',function(){mostraFaixa();});
+window.addEventListener('online',function(){tentativas=0;clearTimeout(timer);envia();atualizaTudo();mostraFaixa();});
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&iniciou&&usuario){envia();atualizaTudo();}});
+
+/* ---------- gravar ---------- */
+function partesPDV(P){
+  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[]},caixa:P.caixa||{},mesas:P.mesas||{}};}
 function mudou(tipo){
   if(!usuario||!iniciou)return;
-  if(tipo==='site'){var s=LS.get(K.site);if(s&&s!==ultimo.site){ultimo.site=s;docSite.set(meta(s)).catch(falhou);}}
-  else if(tipo==='fin'){var f=LS.get(K.fin);if(f&&f!==ultimo.fin){ultimo.fin=f;docFin.set(meta(f)).catch(falhou);}}
-  else if(tipo==='pdv'){var raw=LS.get(K.pdv);if(!raw)return;var P;try{P=JSON.parse(raw);}catch(e){return;}
-    var p=partesPDV(P),b=db.batch(),n=0;
-    if(p.geral!==ultimo.geral){ultimo.geral=p.geral;b.set(docGeral,meta(p.geral));n++;}
-    if(p.caixa!==ultimo.caixa){ultimo.caixa=p.caixa;b.set(docCaixa,meta(p.caixa));n++;}
-    Object.keys(p.mesas).forEach(function(k){if(p.mesas[k]!==ultimo.mesas[k]){ultimo.mesas[k]=p.mesas[k];b.set(colMesas.doc(k),meta(p.mesas[k]));n++;}});
-    Object.keys(ultimo.mesas).forEach(function(k){if(!(k in p.mesas)){delete ultimo.mesas[k];b.delete(colMesas.doc(k));n++;}});
-    if(n)b.commit().catch(falhou);}
+  if(tipo==='site'||tipo==='fin'){if(!pode(tipo))return;var d=ler(K[tipo]);if(!d)return;if(tipo==='site')d=limpaSite(d);var c=canon(d);
+    if(c!==ultimo[tipo]){ultimo[tipo]=c;
+      if(tipo==='site'){enfileira('sitep',{t:'site_painel',id:1,dados:d});enfileira('site',{t:'site',id:1,dados:publico(d)});}
+      else enfileira(tipo,{t:tipo,id:1,dados:d});}return;}
+  if(tipo!=='pdv')return;
+  var P=ler(K.pdv);if(!P)return;var p=partesPDV(P),c2;
+  c2=canon(p.geral);if(c2!==ultimo.geral){ultimo.geral=c2;enfileira('geral',{t:'pdv_geral',id:1,dados:p.geral});}
+  c2=canon(p.caixa);if(c2!==ultimo.caixa&&pode('caixa')){ultimo.caixa=c2;enfileira('caixa',{t:'pdv_caixa',id:1,dados:p.caixa});}
+  Object.keys(p.mesas).forEach(function(k){var cm=canon(p.mesas[k]);if(cm!==ultimo.mesas[k]){ultimo.mesas[k]=cm;enfileira('mesa:'+k,{t:'pdv_mesas',id:k,dados:p.mesas[k]});}});
+  Object.keys(ultimo.mesas).forEach(function(k){if(!(k in p.mesas)){delete ultimo.mesas[k];enfileira('mesa:'+k,{t:'pdv_mesas',id:k,apagar:true});}});
 }
 /* guarda o dia fechado com todas as vendas, movimentos e cancelamentos */
-function arquivarDia(dia){if(!usuario)return;var id='dia-'+(dia.caixa&&dia.caixa.data||new Date().toISOString().slice(0,10))+'-'+Date.now().toString(36);
-  db.doc('pdv/'+id).set(meta(JSON.stringify(dia))).catch(falhou);}
+function arquivarDia(dia){if(!usuario||!pode('dias'))return;
+  var data=(dia.caixa&&dia.caixa.data)||new Date().toISOString().slice(0,10),id='dia-'+data+'-'+Date.now().toString(36);
+  enfileira('dia:'+id,{t:'dias_fechados',id:id,data:data,dados:dia,por:dia.fechadoPor||''});}
 
-/* ---------- receber do banco ---------- */
-function aplicar(tipo,json){var atual=LS.get(K[tipo]);if(json===atual)return;LS.set(K[tipo],json);
-  var d;try{d=JSON.parse(json);}catch(e){return;}if(window.__bigAplicar)window.__bigAplicar(tipo,d);}
-function montaPDV(){if(ultimo.geral==null&&ultimo.caixa==null&&!Object.keys(ultimo.mesas).length)return null;
+function cancelou(c){if(!usuario)return;var id='c-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);
+  enfileira('canc:'+id,{t:'cancelamentos',id:id,data:c.data,dados:c});}
+/* ---------- receber ---------- */
+var CHAVE_T={site:'site',site_painel:'site',fin:'fin',pdv_geral:'geral',pdv_caixa:'caixa'};
+function tabSite(){return acesso&&acesso.papel==='dono'?'site_painel':'site';}
+function chaveFila(t){return t==='site'&&acesso&&acesso.papel==='dono'?'sitep':t;}
+function pendente(chave){return !!fila[chave];}
+function caixaVazio(){var d=new Date(),p=function(n){return (n<10?'0':'')+n;};return {data:d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};}
+function montaPDV(){if(ultimo.caixa==null&&ultimo.geral==null&&!Object.keys(ultimo.mesas).length)return null;
   var g={};try{g=JSON.parse(ultimo.geral||'{}');}catch(e){}
   var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[]};
-  try{P.caixa=JSON.parse(ultimo.caixa||'null');}catch(e){}
-  Object.keys(ultimo.mesas).forEach(function(k){try{P.mesas[k]=JSON.parse(ultimo.mesas[k]);}catch(e){}});
-  if(!P.caixa)return null;return JSON.stringify(P);}
-function ouvir(){
-  docSite.onSnapshot(function(s){if(!s.exists)return;ultimo.site=s.data().json;aplicar('site',ultimo.site);},falhou);
-  docFin.onSnapshot(function(s){if(!s.exists)return;ultimo.fin=s.data().json;aplicar('fin',ultimo.fin);},falhou);
-  /* aplica na hora (sem espera): assim o aparelho nunca grava uma lista de mesas mais velha que a do banco */
-  function pdv(){var j=montaPDV();if(j)aplicar('pdv',j);}
-  docGeral.onSnapshot(function(s){if(!s.exists)return;ultimo.geral=s.data().json;pdv();},falhou);
-  docCaixa.onSnapshot(function(s){if(!s.exists)return;ultimo.caixa=s.data().json;pdv();},falhou);
-  colMesas.onSnapshot(function(q){q.docChanges().forEach(function(c){if(c.type==='removed')delete ultimo.mesas[c.doc.id];else ultimo.mesas[c.doc.id]=c.doc.data().json;});pdv();},falhou);
-}
-
-/* ---------- carregar tudo antes de abrir o painel ---------- */
-function carregar(){
-  var faltando=[];
-  return Promise.all([docSite.get(),docFin.get(),docGeral.get(),docCaixa.get(),colMesas.get()]).then(function(r){
-    if(r[0].exists){ultimo.site=r[0].data().json;LS.set(K.site,ultimo.site);}else{LS.del(K.site);faltando.push('site');}
-    if(r[1].exists){ultimo.fin=r[1].data().json;LS.set(K.fin,ultimo.fin);}else{LS.del(K.fin);faltando.push('fin');}
-    if(r[2].exists)ultimo.geral=r[2].data().json;
-    if(r[3].exists)ultimo.caixa=r[3].data().json;
-    r[4].forEach(function(d){ultimo.mesas[d.id]=d.data().json;});
-    var j=montaPDV();if(j)LS.set(K.pdv,j);else{LS.del(K.pdv);faltando.push('pdv');}
+  try{P.caixa=ultimo.caixa?JSON.parse(ultimo.caixa):caixaVazio();}catch(e){P.caixa=caixaVazio();}
+  Object.keys(ultimo.mesas).sort().forEach(function(k){try{P.mesas[k]=JSON.parse(ultimo.mesas[k]);}catch(e){}});
+  return P.caixa?P:null;}
+function aplicar(tipo,obj){if(!obj)return;var atual=ler(K[tipo]);if(atual&&canon(atual)===canon(obj))return;
+  LS.set(K[tipo],JSON.stringify(obj));if(iniciou&&window.__bigAplicar)window.__bigAplicar(tipo,obj);}
+function aplicaPDV(){var P=montaPDV();if(P)aplicar('pdv',P);}
+/* uma linha que chegou do banco: entra no "ultimo", a não ser que este aparelho tenha versão mais nova esperando na fila */
+function recebe(tabela,linha,apagou){
+  if(!apagou&&linha.dados===undefined){setTimeout(atualizaTudo,300);return false;}
+  if(tabela==='pdv_mesas'){var k=String(linha.id);if(!ID_OK.test(k)||pendente('mesa:'+k))return false;if(!apagou)limpa(linha.dados);
+    if(apagou){if(!(k in ultimo.mesas))return false;delete ultimo.mesas[k];return true;}
+    var c=canon(linha.dados);if(ultimo.mesas[k]===c)return false;ultimo.mesas[k]=c;return true;}
+  if((tabela==='site'||tabela==='site_painel')&&tabela!==tabSite())return false;
+  var t=CHAVE_T[tabela];if(!t||apagou||pendente(chaveFila(t)))return false;
+  var dd=t==='site'?limpaSite(linha.dados):limpa(linha.dados);var c2=canon(dd);if(ultimo[t]===c2)return false;ultimo[t]=c2;return true;}
+function buscaTudo(){
+  var q=[sb.from(tabSite()).select('id,dados'),pode('fin')?sb.from('fin').select('id,dados'):Promise.resolve({data:[]}),
+         sb.from('pdv_geral').select('id,dados'),sb.from('pdv_caixa').select('id,dados'),sb.from('pdv_mesas').select('id,dados')];
+  return Promise.all(q).then(function(r){
+    r.forEach(function(x){if(x.error)throw x.error;});
+    var faltando=[];
+    var nomes=[tabSite(),'fin','pdv_geral','pdv_caixa'];
+    nomes.forEach(function(nm,i){var l=r[i].data[0];if(l)recebe(nm,l,false);
+      else if(!pendente(chaveFila(CHAVE_T[nm])))faltando.push(CHAVE_T[nm]);});
+    /* mesas: o que sumiu do banco foi fechado em outro aparelho */
+    var noBanco={};r[4].data.forEach(function(l){noBanco[l.id]=1;recebe('pdv_mesas',l,false);});
+    Object.keys(ultimo.mesas).forEach(function(k){if(!noBanco[k])recebe('pdv_mesas',{id:k},true);});
     return faltando;
   });
 }
-function abrir(faltando){
-  if(iniciou)return;iniciou=true;
-  window.__bigApp();
-  (faltando||[]).forEach(function(t){if(window.__bigSalvar)window.__bigSalvar(t);});
-  if(usuario)ouvir();
+var atualizando=null;
+function atualizaTudo(){if(!iniciou||!usuario||atualizando)return;
+  atualizando=buscaTudo().then(function(){
+    if(ultimo.site)aplicar('site',JSON.parse(ultimo.site));
+    if(ultimo.fin&&pode('fin'))aplicar('fin',JSON.parse(ultimo.fin));
+    aplicaPDV();}).catch(function(e){if(window.console)console.warn('[big-sync]',e);}).then(function(){atualizando=null;});}
+var canal=null;
+function ouvir(){if(ouvindo)return;ouvindo=true;var primeira=true;
+  canal=sb.channel('painel');
+  [tabSite(),'fin','pdv_geral','pdv_caixa','pdv_mesas'].forEach(function(t){
+    canal.on('postgres_changes',{event:'*',schema:'public',table:t},function(ev){
+      var apagou=ev.eventType==='DELETE',linha=apagou?ev.old:ev.new;if(!linha)return;
+      if(!recebe(t,linha,apagou))return;
+      if(t==='site'||t==='site_painel')aplicar('site',JSON.parse(ultimo.site));
+      else if(t==='fin')aplicar('fin',JSON.parse(ultimo.fin));
+      else aplicaPDV();});});
+  canal.subscribe(function(st){
+    if(st==='SUBSCRIBED'){if(!primeira)atualizaTudo();primeira=false;}});
 }
-var cortina=document.createElement('div');
-cortina.style.cssText='position:fixed;inset:0;z-index:300;background:#EADFC1;display:flex;align-items:center;justify-content:center;font:600 18px system-ui,sans-serif;color:#1B1713';
-cortina.textContent='Carregando o painel…';
-function tiraCortina(){if(cortina.parentNode)cortina.parentNode.removeChild(cortina);}
-document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(cortina);});
 
-auth.onAuthStateChanged(function(u){
-  if(iniciou)return;
-  usuario=u;
-  if(!u){LS.del(K.entrou);LS.del(K.pdv);LS.del(K.fin);tiraCortina();abrir([]);return;}
-  LS.set(K.entrou,'1');
-  carregar().then(function(f){tiraCortina();abrir(f);}).catch(function(err){
-    falhou(err);tiraCortina();abrir([]);});
-});
+/* ---------- abrir o painel ---------- */
+function preparaLocal(){
+  /* começa do que o aparelho já tinha + o que ainda está na fila */
+  var s=ler(K.site),f=ler(K.fin),P=ler(K.pdv);
+  if(s)ultimo.site=canon(limpaSite(s));if(f)ultimo.fin=canon(f);
+  if(P){var p=partesPDV(P);ultimo.geral=canon(p.geral);ultimo.caixa=canon(p.caixa);Object.keys(p.mesas).forEach(function(k){ultimo.mesas[k]=canon(p.mesas[k]);});}
+  Object.keys(fila).forEach(function(k){var op=fila[k];
+    if(k.indexOf('mesa:')===0){if(op.apagar)delete ultimo.mesas[op.id];else ultimo.mesas[op.id]=canon(op.dados);}
+    else if(k==='sitep'||k==='fin'||k==='geral'||k==='caixa')ultimo[k==='sitep'?'site':k]=canon(op.dados);});
+}
+function abrir(faltando){
+  if(iniciou)return;iniciou=true;tiraCortina();
+  window.__bigApp();
+  if(acesso&&acesso.papel==='dono')(faltando||[]).forEach(function(t){ultimo[t]=null;if(window.__bigSalvar)window.__bigSalvar(t==='geral'||t==='caixa'?'pdv':t);});
+  if(usuario){ouvir();envia();if(window.__bigEquipe&&acesso&&acesso.papel!=='dono')window.__bigEquipe(acesso);}
+}
+function comecar(u,offline){
+  usuario=u;LS.set(K.entrou,'1');
+  if(acesso.papel!=='dono')LS.set(K.perfil,JSON.stringify({tipo:acesso.papel,nome:acesso.nome}));
+  document.documentElement.classList.toggle('perfil-fixo',acesso.papel!=='dono');
+  preparaLocal();
+  if(offline){abrir([]);return;}
+  buscaTudo().then(function(faltando){
+    if(ultimo.site)LS.set(K.site,ultimo.site);else LS.del(K.site);
+    if(pode('fin')){if(ultimo.fin)LS.set(K.fin,ultimo.fin);else LS.del(K.fin);}else LS.del(K.fin);
+    var P=montaPDV();if(P)LS.set(K.pdv,JSON.stringify(P));else LS.del(K.pdv);
+    abrir(faltando);
+  }).catch(function(err){if(window.console)console.warn('[big-sync]',err);mostraFaixa();abrir([]);});
+}
+function semAcesso(msg){tiraCortina();cortina.textContent='';
+  var c=caixaCentral('Acesso não liberado',msg);var b=document.createElement('button');b.textContent='Sair';b.style.cssText=BTN;
+  b.onclick=function(){limpaLocal();sb.auth.signOut().then(function(){location.hash='#entrar';location.reload();});};c.appendChild(b);}
+function iniciar(u){
+  sb.from('equipe_acesso').select('papel,nome,ativo').eq('user_id',u.id).maybeSingle().then(function(r){
+    if(r.error)throw r.error;
+    if(!r.data||!r.data.ativo){LS.del(K.acesso);semAcesso('Este e-mail ainda não tem acesso ao painel. Fale com o dono do Big.');return;}
+    acesso={papel:r.data.papel,nome:r.data.nome};LS.set(K.acesso,JSON.stringify({uid:u.id,papel:acesso.papel,nome:acesso.nome}));
+    comecar(u,false);
+  }).catch(function(err){
+    /* sem internet: usa o último acesso conhecido deste aparelho */
+    var a=ler(K.acesso);if(a&&a.uid===u.id){acesso={papel:a.papel,nome:a.nome};comecar(u,true);mostraFaixa();return;}
+    tiraCortina();caixaCentral('Sem conexão','Não deu pra conferir seu acesso agora. Confira a internet e abra de novo.');
+  });
+}
+
+/* ---------- telas desta camada (carregando, criar senha) ---------- */
+var BTN='appearance:none;border:0;background:#F5A51B;color:#0B0B0B;font:700 17px system-ui,sans-serif;padding:14px 18px;min-height:48px;border-radius:4px;cursor:pointer;width:100%;margin-top:10px';
+var cortina=document.createElement('div');
+cortina.style.cssText='position:fixed;inset:0;z-index:300;background:#EADFC1;display:flex;align-items:center;justify-content:center;font:600 18px system-ui,sans-serif;color:#1B1713;padding:20px';
+cortina.textContent='Carregando o painel…';
+function tiraCortina(){if(cortina.parentNode&&cortina.textContent==='Carregando o painel…')cortina.parentNode.removeChild(cortina);}
+function poeCortina(){if(document.body&&!cortina.parentNode)document.body.appendChild(cortina);}
+document.addEventListener('DOMContentLoaded',poeCortina);poeCortina();
+function caixaCentral(titulo,texto){
+  var fundo=document.createElement('div');fundo.style.cssText='position:fixed;inset:0;z-index:310;background:#EADFC1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto';
+  var c=document.createElement('div');c.setAttribute('role','dialog');c.setAttribute('aria-labelledby','big-cx-h');
+  c.style.cssText='background:#1B1713;color:#F1E8CF;max-width:380px;width:100%;padding:24px;border-radius:6px;font:400 16px/1.4 system-ui,sans-serif;box-shadow:6px 7px 0 #A8711A';
+  c.innerHTML='<h2 id="big-cx-h" style="margin:0 0 8px;font:800 24px/1.1 system-ui,sans-serif;color:#F5A51B"></h2><p style="margin:0 0 6px"></p>';
+  c.querySelector('h2').textContent=titulo;c.querySelector('p').textContent=texto;
+  fundo.appendChild(c);var por=function(){document.body.appendChild(fundo);};if(document.body)por();else document.addEventListener('DOMContentLoaded',por);
+  return c;}
+function telaSenha(u){
+  tiraCortina();
+  var c=caixaCentral(linkTipo==='invite'?'Bem-vindo ao painel do Big':'Crie uma senha nova','Crie sua senha pra entrar no painel'+(u.email?' com '+u.email:'')+'. Use pelo menos 8 letras ou números.');
+  var f=document.createElement('form');f.noValidate=true;
+  var CAMPO='display:block;width:100%;box-sizing:border-box;font:400 18px system-ui,sans-serif;padding:12px;margin:4px 0 10px;border:2px solid #A8711A;border-radius:4px;background:#F1E8CF;color:#1B1713';
+  f.innerHTML='<input type="email" autocomplete="username" hidden>'+
+    '<label style="display:block;font-weight:700;margin-top:10px">Senha<input id="big-s1" type="password" autocomplete="new-password" style="'+CAMPO+'"></label>'+
+    '<label style="display:block;font-weight:700">Repita a senha<input id="big-s2" type="password" autocomplete="new-password" style="'+CAMPO+'"></label>'+
+    '<p id="big-s-erro" role="alert" style="color:#FFB4A9;margin:0;min-height:1.4em"></p>'+
+    '<button type="submit" style="'+BTN+'">Salvar senha e entrar</button>';
+  f.querySelector('input[type=email]').value=u.email||'';
+  c.appendChild(f);
+  f.addEventListener('submit',function(e){e.preventDefault();
+    var s1=f.querySelector('#big-s1').value,s2=f.querySelector('#big-s2').value,er=f.querySelector('#big-s-erro'),bt=f.querySelector('button');
+    if(s1.length<8){er.textContent='A senha precisa de pelo menos 8 caracteres.';return;}
+    if(s1!==s2){er.textContent='As duas senhas não são iguais.';return;}
+    bt.disabled=true;bt.textContent='Salvando…';
+    sb.auth.updateUser({password:s1}).then(function(r){
+      if(r.error)throw r.error;
+      location.hash='';location.reload();
+    }).catch(function(err){bt.disabled=false;bt.textContent='Salvar senha e entrar';er.textContent=erro(err);});
+  });
+  setTimeout(function(){var i=f.querySelector('#big-s1');if(i)i.focus();},50);
+}
+
+
+/* ---------- acessos ao painel (só o dono): gera link, manda no WhatsApp, tira e devolve acesso ---------- */
+function chamaEquipe(corpo){corpo.voltar=location.origin+location.pathname;
+  return sb.functions.invoke('equipe',{body:corpo}).then(function(r){
+    if(r.error){var c=r.error.context;if(c&&c.json)return c.json().then(function(j){throw new Error(j.erro||r.error.message);},function(){throw r.error;});throw r.error;}
+    if(r.data&&r.data.erro)throw new Error(r.data.erro);return r.data;});}
+var PAPEL_NOME={dono:'Dono',caixa:'Caixa',garcom:'Garçom'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function acessos(el){
+  if(!el)return;if(!acesso||acesso.papel!=='dono'){el.hidden=true;return;}el.hidden=false;
+  if(el.dataset.pronto)return carregaLista();el.dataset.pronto='1';
+  el.innerHTML='<h3>Acessos ao painel</h3>'+
+    '<p class="acs-txt">Cada pessoa entra com o próprio e-mail e senha. Gere o link, mande no WhatsApp, e a pessoa cria a senha dela.</p>'+
+    '<ul class="eq-lista" id="acs-lista"><li class="vazio-txt">Carregando…</li></ul>'+
+    '<form id="acs-novo" novalidate>'+
+      '<label class="campo"><span>Nome</span><input type="text" id="acs-nome" autocomplete="off" placeholder="Ex.: Toninho"></label>'+
+      '<label class="campo"><span>E-mail</span><input type="email" id="acs-email" inputmode="email" autocomplete="off" placeholder="email@da.pessoa"></label>'+
+      '<span class="seg" role="group" aria-label="Papel"><button type="button" data-papel="garcom" aria-pressed="true">Garçom</button><button type="button" data-papel="caixa" aria-pressed="false">Caixa</button><button type="button" data-papel="dono" aria-pressed="false">Dono</button></span>'+
+      '<button class="btn ambar" type="submit">Gerar link de acesso</button>'+
+    '</form><div id="acs-link" hidden></div>';
+  var papel='garcom',f=el.querySelector('#acs-novo');
+  f.addEventListener('click',function(e){var b=e.target.closest('[data-papel]');if(!b)return;papel=b.dataset.papel;
+    f.querySelectorAll('[data-papel]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});});
+  f.addEventListener('submit',function(e){e.preventDefault();
+    var nome=el.querySelector('#acs-nome').value.trim(),email=el.querySelector('#acs-email').value.trim(),bt=f.querySelector('[type=submit]');
+    if(!nome||!email){mostraLink(null,'Preencha nome e e-mail.');return;}
+    bt.disabled=true;bt.textContent='Gerando…';
+    chamaEquipe({acao:'link',nome:nome,email:email,papel:papel}).then(function(r){
+      mostraLink({nome:nome,papel:papel,link:r.link});el.querySelector('#acs-nome').value='';el.querySelector('#acs-email').value='';carregaLista();
+    }).catch(function(err){mostraLink(null,err.message||String(err));}).then(function(){bt.disabled=false;bt.textContent='Gerar link de acesso';});});
+  el.addEventListener('click',function(e){var b=e.target.closest('[data-acs]');if(!b)return;var li=b.closest('[data-uid]'),a=b.dataset.acs;
+    if(a==='copiar'){var t=el.querySelector('#acs-url');t.select();try{navigator.clipboard.writeText(t.value);}catch(x){document.execCommand('copy');}b.textContent='Copiado!';return;}
+    if(!li)return;var p=JSON.parse(li.dataset.p);
+    if(a==='novo-link'){b.disabled=true;chamaEquipe({acao:'link',nome:p.nome,email:p.email,papel:p.papel}).then(function(r){mostraLink({nome:p.nome,papel:p.papel,link:r.link,senha:true});})
+      .catch(function(err){mostraLink(null,err.message);}).then(function(){b.disabled=false;});}
+    if(a==='tirar'||a==='devolver'){b.disabled=true;chamaEquipe({acao:'ativo',user_id:p.user_id,ativo:a==='devolver'}).then(carregaLista).catch(function(err){mostraLink(null,err.message);b.disabled=false;});}
+  });
+  function mostraLink(r,erroTxt){var box=el.querySelector('#acs-link');box.hidden=false;
+    if(!r){box.innerHTML='<p class="acs-erro" role="alert">'+esc(erroTxt)+'</p>';return;}
+    var msg='Oi, '+r.nome+'! Seu acesso ao painel do Big Bar e Prosa ('+PAPEL_NOME[r.papel]+'). Abra este link no celular e '+(r.senha?'crie uma senha nova':'crie sua senha')+': '+r.link;
+    box.innerHTML='<p><b>Link de '+esc(r.nome)+' pronto.</b> Vale por 24 horas e só funciona uma vez.</p>'+
+      '<textarea id="acs-url" readonly rows="3" style="width:100%;font:400 .9rem monospace">'+esc(r.link)+'</textarea>'+
+      '<div class="acs-bts"><a class="btn ambar" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(msg)+'">Mandar no WhatsApp</a>'+
+      '<button class="btn claro" type="button" data-acs="copiar">Copiar link</button></div>';
+    box.scrollIntoView({block:'nearest'});}
+  carregaLista();
+  function carregaLista(){var ul=el.querySelector('#acs-lista');
+    chamaEquipe({acao:'listar'}).then(function(r){
+      ul.innerHTML=(r.equipe||[]).map(function(p){var eu=p.user_id===r.eu;
+        return '<li class="eq-it'+(p.ativo?'':' acs-off')+'" data-uid="'+esc(p.user_id)+'" data-p="'+esc(JSON.stringify(p))+'"><span class="n">'+esc(p.nome)+(eu?' (você)':'')+'<small>'+esc(p.email)+'</small></span>'+
+          '<span class="fn'+(p.papel==='caixa'?' cx':'')+'">'+(p.ativo?PAPEL_NOME[p.papel]:'Sem acesso')+'</span>'+
+          (eu?'':(p.ativo?'<button class="acao" type="button" data-acs="novo-link">Novo link</button><button class="acao apagar" type="button" data-acs="tirar">Tirar acesso</button>'
+                        :'<button class="acao" type="button" data-acs="devolver">Devolver acesso</button>'))+'</li>';}).join('')||'<li class="vazio-txt">Ninguém ainda.</li>';
+    }).catch(function(err){ul.innerHTML='<li class="vazio-txt">Não deu pra carregar ('+esc(err.message||err)+').</li>';});}
+  el.__lista=carregaLista;
+}
+/* ---------- começo ---------- */
+function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.acesso].forEach(LS.del);}
+function inicio(){sb.auth.getSession().then(function(r){
+  var s=r&&r.data&&r.data.session;
+  if(!s&&r&&r.error){var a=ler(K.acesso);if(a&&a.uid){acesso={papel:a.papel,nome:a.nome};comecar({id:a.uid},true);mostraFaixa();return;}} /* sem internet pra renovar o login */
+  if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);abrir([]); /* a fila fica: sobe no próximo login */
+    if(linkErro)setTimeout(function(){caixaCentral('Link vencido','Esse link de acesso já foi usado ou venceu. Peça um novo ao dono do Big, ou toque em "Esqueci a senha" na tela de entrar.');},0);
+    return;}
+  if(linkTipo==='invite'||linkTipo==='recovery'){telaSenha(s.user);return;}
+  iniciar(s.user);
+}).catch(function(e){if(window.console)console.error('[big-sync]',e);abrir([]);});}
+/* espera a página inteira (o app vem depois deste arquivo) */
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inicio);else setTimeout(inicio,0);
+sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&iniciou&&usuario){location.hash='#entrar';location.reload();}});
+
+function erro(err){var c=String(err&&(err.code||'')),m=String(err&&(err.message||err)||'');
+  if(/invalid_credentials|Invalid login/i.test(c+m))return 'E-mail ou senha errados.';
+  if(/email_not_confirmed/i.test(c+m))return 'Abra o e-mail de convite primeiro e crie sua senha.';
+  if(/rate|too many|429/i.test(c+m))return 'Muitas tentativas. Espere um pouco e tente de novo.';
+  if(/fetch|network|Failed/i.test(m))return 'Sem internet agora.';
+  if(/same_password|should be different/i.test(c+m))return 'Escolha uma senha diferente da anterior.';
+  if(/weak_password|at least/i.test(c+m))return 'Senha fraca. Use pelo menos 8 caracteres.';
+  if(/user_banned/i.test(c+m))return 'Este acesso foi desativado.';
+  return 'Erro: '+(m||c);}
 
 window.BIG_SYNC={
-  mudou:mudou,arquivarDia:arquivarDia,
+  mudou:mudou,arquivarDia:arquivarDia,cancelou:cancelou,erro:erro,
   usuario:function(){return usuario;},
-  entrar:function(email,senha){return auth.signInWithEmailAndPassword(email,senha);},
-  sair:function(){LS.del(K.pdv);LS.del(K.fin);LS.del(K.entrou);LS.del(K.perfil);return auth.signOut();},
-  erro:function(err){var c=err&&err.code||'';
-    if(/invalid-credential|wrong-password|user-not-found|invalid-email|invalid-login/.test(c))return 'E-mail ou senha errados.';
-    if(/too-many-requests/.test(c))return 'Muitas tentativas. Espere um pouco e tente de novo.';
-    if(/network/.test(c))return 'Sem internet agora.';
-    if(/user-disabled/.test(c))return 'Este acesso foi desativado.';
-    return 'Erro: '+(c||err);}
+  perfilFixo:function(){return acesso&&acesso.papel!=='dono'?{tipo:acesso.papel,nome:acesso.nome}:null;},
+  pendentes:function(){return Object.keys(fila).length;},
+  acessos:acessos,
+  entrar:function(email,senha){return sb.auth.signInWithPassword({email:email,password:senha}).then(function(r){if(r.error)throw r.error;return r.data;});},
+  esqueci:function(email){return sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}).then(function(r){if(r.error)throw r.error;});},
+  sair:function(){
+    if(Object.keys(fila).length){envia();return Promise.reject(new Error('pendente'));}
+    if(canal)sb.removeChannel(canal);usuario=null;limpaLocal();return sb.auth.signOut();}
 };
 })();

@@ -418,7 +418,7 @@ a{color:inherit}
   <div class="redes">
     <a class="lnk" href="https://instagram.com/bigbareprosa" rel="noopener">Instagram</a>
     <a class="lnk" href="https://wa.me/" rel="noopener">WhatsApp</a>
-    <a class="lnk" href="admin.html">Área do dono</a>
+    
   </div>
   <p class="legal">Venda de bebida alcoólica proibida para menores de 18 anos. Se beber, não dirija.</p>
 </footer>
@@ -579,9 +579,9 @@ setInterval(function(){var r=ler();var a=B.agora(r.dados);var el=document.getEle
 
 <script>
 /* site lê o cardápio, horários, shows e avisos que o painel salvou no banco (leitura pública) */
-(function(){var URL='https://firestore.googleapis.com/v1/projects/big-bar-e-prosa/databases/(default)/documents/publico/site';
-function busca(){fetch(URL,{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
-  var v=j&&j.fields&&j.fields.json&&j.fields.json.stringValue;if(!v)return;
+(function(){var URL='https://uwyoosmjnghokpdrmumk.supabase.co/rest/v1/site?id=eq.1&select=dados',CH='sb_publishable_uGEzmDjXXCcXyUz89nVPcA_GFhCKAj-';
+function busca(){fetch(URL,{cache:'no-store',headers:{apikey:CH}}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+  var v=j&&j[0]&&j[0].dados;if(!v)return;v=JSON.stringify(v);
   try{if(localStorage.getItem('bigSite.cache')===v)return;localStorage.setItem('bigSite.cache',v);}catch(e){}
   if(window.BIG_RODAR)window.BIG_RODAR();}).catch(function(){});}
 busca();setInterval(busca,60000);document.addEventListener('visibilitychange',function(){if(!document.hidden)busca();});})();
