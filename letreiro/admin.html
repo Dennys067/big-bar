@@ -633,6 +633,8 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
 }
 html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 #acessos{margin-bottom:1.4rem}#acessos .acs-txt{margin:.2rem 0 1rem;font-size:1.05rem}#acessos .eq-it small{display:block;font:400 .85rem/1.2 var(--f-texto);text-transform:none;letter-spacing:0;opacity:.75}#acessos .acs-off{opacity:.55}#acessos .seg{margin-bottom:.9rem;display:inline-flex}#acessos .acs-bts{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.6rem}#acessos .acs-erro{color:#B3261E;font-weight:700}#acs-link{margin-top:1rem}
+.cx-mais{margin:0 0 1rem}.cx-mais>summary{cursor:pointer;display:inline-flex;align-items:center;min-height:44px;font:700 .95rem/1 var(--f-placa);text-transform:uppercase;letter-spacing:.1em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;color:var(--tinta)}.cx-mais>summary::marker{color:var(--ambar)}.cx-mais[open]>summary{margin-bottom:.6rem}
+#aviso-conta{position:fixed;right:16px;bottom:16px;z-index:350;display:flex;flex-direction:column;gap:.5rem;max-width:min(360px,calc(100vw - 32px))}#aviso-conta .ac{display:flex;align-items:center;gap:.6rem;background:var(--preto);color:var(--creme);border-left:6px solid var(--ambar);padding:.6rem .6rem .6rem .9rem;box-shadow:5px 5px 0 var(--ambar-gasto);font:600 1rem/1.25 var(--f-texto)}#aviso-conta .ac b{color:var(--ambar)}#aviso-conta .ac a{color:var(--ambar);font-weight:800;white-space:nowrap;min-height:44px;display:inline-flex;align-items:center}#aviso-conta .ac button{background:transparent;border:0;color:var(--creme);font-size:1.4rem;min-width:44px;min-height:44px;cursor:pointer}
 .restaurar{display:none!important}
 </style>
 </head>
@@ -1532,22 +1534,22 @@ function renderCaixa(){
   }
   if(ultimaVenda)h+='<p class="cx-ultima" role="status"><b>Fechou!</b> '+esc(ultimaVenda.mesa)+' · <span class="v">'+R(ultimaVenda.total)+'</span>'+(ultimaVenda.troco?' · troco <span class="v">'+R(ultimaVenda.troco)+'</span>':'')+' · '+esc(ultimaVenda.pags.map(function(p){return FORMAS[p.f];}).filter(function(x,i,a){return a.indexOf(x)===i;}).join(' + '))+'</p>';
   h+='<div class="caixa-grade"><div>';
-  h+='<div class="parede"><h3>Pediram a conta</h3>'+(pedindo.length?'<ul class="cx-lista">'+pedindo.map(linhaCx).join('')+'</ul>':'<p class="vazio-txt">Ninguém pediu a conta agora.</p>')+'</div>';
-  h+='<div class="parede"><h3>Mesas ocupadas</h3>'+(outras.length?'<ul class="cx-lista">'+outras.map(linhaCx).join('')+'</ul>':'<p class="vazio-txt">Nenhuma outra mesa com pedido.</p>')+'</div>';
+  outras=pedindo.concat(outras);
+  h+='<div class="parede"><h3>Mesas abertas</h3>'+(outras.length?'<ul class="cx-lista">'+outras.map(linhaCx).join('')+'</ul>':'<p class="vazio-txt">Nenhuma outra mesa com pedido.</p>')+'</div>';
   h+='</div><div>';
   if(c.aberto){
-    h+='<form class="parede cx-mov" id="cx-mov" novalidate><h3>Sangria e suprimento</h3>'+
+    h+='<details class="cx-mais"'+(window.__cxMaisAberto?' open':'')+'><summary>Mais opções do caixa</summary><form class="parede cx-mov" id="cx-mov" novalidate><h3>Sangria e suprimento</h3>'+
       '<span class="seg" role="group" aria-label="Tipo"><button type="button" data-acao="cx-mt" data-t="sangria" aria-pressed="'+(movTipo==='sangria')+'">Sangria (tirar)</button><button type="button" data-acao="cx-mt" data-t="suprimento" aria-pressed="'+(movTipo==='suprimento')+'">Suprimento (pôr)</button></span>'+
       '<div class="duo"><label class="campo"><span>Valor</span><input type="text" inputmode="decimal" id="cx-mv" placeholder="0,00" autocomplete="off"></label><label class="campo"><span>Motivo</span><input type="text" id="cx-mm" placeholder="Ex.: cofre, gelo" autocomplete="off"></label></div>'+
       '<button class="btn ambar" type="submit">Lançar</button>'+
-      (c.movs.length?'<ul class="mov-lista">'+c.movs.map(function(m){return '<li><span>'+esc(m.hora)+' · '+(m.tipo==='sangria'?'Sangria':'Suprimento')+(m.motivo?' · '+esc(m.motivo):'')+' · '+esc(m.por)+'</span><span class="v'+(m.tipo==='sangria'?' menos':'')+'">'+(m.tipo==='sangria'?'− ':'+ ')+R(m.valor)+'</span></li>';}).join('')+'</ul>':'')+'</form>';
+      (c.movs.length?'<ul class="mov-lista">'+c.movs.map(function(m){return '<li><span>'+esc(m.hora)+' · '+(m.tipo==='sangria'?'Sangria':'Suprimento')+(m.motivo?' · '+esc(m.motivo):'')+' · '+esc(m.por)+'</span><span class="v'+(m.tipo==='sangria'?' menos':'')+'">'+(m.tipo==='sangria'?'− ':'+ ')+R(m.valor)+'</span></li>';}).join('')+'</ul>':'')+'</form></details>';
   }
   h+='<div class="cx-rodape"><a class="btn" href="#fechamento">Fechamento do dia</a></div>';
   h+='</div></div>';
   document.getElementById('caixa-corpo').innerHTML=h;
-  document.getElementById('caixa-sub').textContent=pedindo.length?plural(pedindo.length,'mesa pediu','mesas pediram')+' a conta.':'Toque na mesa pra receber.';
+  document.getElementById('caixa-sub').textContent='Toque na mesa pra receber.';
 }
-var cxc=document.getElementById('caixa-corpo');
+var cxc=document.getElementById('caixa-corpo');cxc.addEventListener('toggle',function(e){if(e.target.classList&&e.target.classList.contains('cx-mais'))window.__cxMaisAberto=e.target.open;},true);
 cxc.addEventListener('submit',function(e){
   e.preventDefault();var pf=PF();
   if(e.target.id==='cx-abrir'){var c=P.caixa;c.aberto=true;c.abertoEm=agora();c.abertoPor=pf.nome;c.troco=cent(document.getElementById('cx-troco').value);c.data=hojeStr();c.vendas=[];c.movs=[];gp();renderCaixa();toast('Caixa aberto!','Troco inicial '+R(c.troco));document.getElementById('h-caixa').focus();}
@@ -2106,11 +2108,58 @@ window.__bigAplicar=function(t,d){
   else if(t==='pdv'){if(!d||!d.mesas||!d.caixa)return;if(!d.cancelados)d.cancelados=[];P=d;}
   else if(t==='fin'){if(!d||!d.dias)return;F=d;}
   redesenhar();};
-/* quem entra como garçom ou caixa aparece na lista da equipe */
+/* ===== "Tem certeza?" antes das ações que não têm volta ===== */
+var RISCO={
+  'm-estornar':['Cancelar 1 item já enviado?','O item sai da mesa e fica registrado como cancelado, com o seu nome.','Sim, cancelar item'],
+  'c-fechar':['Fechar esta conta?','A venda é registrada no caixa e a mesa fica livre. Não dá pra reabrir depois.','Sim, fechar conta'],
+  'm-liberar':['Fechar esta comanda?','A comanda some da lista de mesas.','Sim, fechar comanda'],
+  'ac-lancar':['Lançar o pagamento da equipe?','O valor entra como saída no financeiro.','Sim, lançar'],
+  'cp-pagar-ok':['Marcar esta conta como paga?','O valor sai da conta escolhida no financeiro.','Sim, está paga'],
+  'cp-desfaz':['Desfazer o pagamento?','A conta volta a ficar em aberto.','Sim, desfazer'],
+  'tirar-foto':['Tirar a foto do cartaz?','Para voltar, vai ser preciso escolher a foto de novo.','Sim, tirar foto'],
+  'c-tirar':['Tirar este pagamento da conta?','O valor volta a ficar faltando na conta.','Sim, tirar']
+};
+var certezaOk=null;
+function certeza(txt,sim){
+  var velho=document.getElementById('certeza-modal');if(velho)velho.remove();
+  var volta=document.activeElement,f=document.createElement('div');f.id='certeza-modal';
+  f.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(11,11,11,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  f.innerHTML='<div class="parede" role="alertdialog" aria-modal="true" aria-labelledby="certeza-h" aria-describedby="certeza-p" style="max-width:420px;width:100%;margin:0">'+
+    '<h3 id="certeza-h" style="margin-top:0"></h3><p id="certeza-p" style="margin:.4rem 0 1.2rem"></p>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:.6rem"><button type="button" class="btn ambar" data-c="sim"></button><button type="button" class="btn claro" data-c="nao">Não, voltar</button></div></div>';
+  f.querySelector('h3').textContent=txt[0];f.querySelector('p').textContent=txt[1];f.querySelector('[data-c="sim"]').textContent=txt[2];
+  function fecha(){f.remove();document.removeEventListener('keydown',esc,true);if(volta&&volta.focus)volta.focus();}
+  function esc(e){if(e.key==='Escape'){e.preventDefault();fecha();}}
+  f.addEventListener('click',function(e){var b=e.target.closest('[data-c]');if(e.target===f||(b&&b.dataset.c==='nao'))fecha();else if(b){fecha();sim();}});
+  document.addEventListener('keydown',esc,true);document.body.appendChild(f);f.querySelector('[data-c="nao"]').focus();}
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-acao]');
+  if(!b||b.disabled||!RISCO[b.dataset.acao])return;if(certezaOk===b){certezaOk=null;return;}
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  certeza(RISCO[b.dataset.acao],function(){if(!document.body.contains(b))return;certezaOk=b;b.click();});},true);
+document.addEventListener('submit',function(e){var cxMov=e.target;if(!cxMov||cxMov.id!=='cx-mov')return;if(cxMov.dataset.ok)return;
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  var sg=cxMov.querySelector('[data-acao="cx-mt"][data-t="sangria"]'),t=sg&&sg.getAttribute('aria-pressed')==='true'?'sangria':'suprimento';
+  certeza(['Lançar '+(t==='sangria'?'sangria (tirar dinheiro)':'suprimento (pôr dinheiro)')+'?','O movimento fica registrado no caixa do dia e não dá pra apagar.','Sim, lançar'],
+    function(){if(!document.body.contains(cxMov))return;cxMov.dataset.ok='1';cxMov.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});},true);
+/* ===== aviso "Mesa X pediu a conta": aparece uns segundos e some (pra dono e caixa) ===== */
+var contaVista=null;
+function avisoConta(m){var box=document.getElementById('aviso-conta');
+  if(!box){box=document.createElement('div');box.id='aviso-conta';box.setAttribute('role','status');box.setAttribute('aria-live','polite');document.body.appendChild(box);}
+  var d=document.createElement('div');d.className='ac';
+  d.innerHTML='<span><b></b> pediu a conta</span><a href="#conta/'+encodeURIComponent(m.id)+'">Receber</a><button type="button" aria-label="Fechar aviso">×</button>';
+  d.querySelector('b').textContent=mesaNome(m.id,m);
+  d.querySelector('button').onclick=function(){d.remove();};d.querySelector('a').onclick=function(){d.remove();};
+  box.appendChild(d);setTimeout(function(){d.remove();},10000);}
+function confereContas(){var agora={};Object.keys(P.mesas).forEach(function(k){var m=P.mesas[k];if(m&&m.conta)agora[k]=m.contaEm||'1';});
+  if(contaVista){var pf=PF();if(pf.tipo!=='garcom')Object.keys(agora).forEach(function(k){if(!contaVista[k]||contaVista[k]!==agora[k])avisoConta(P.mesas[k]);});}
+  contaVista=agora;}
+setInterval(confereContas,1500);confereContas();
+/* dono: dias fechados pelo caixa entram no financeiro */
 window.__bigImportarDias=function(lista){var feito=F.importados||(F.importados=[]),mudou=false;
   lista.forEach(function(x){if(feito.indexOf(x.id)>=0)return;var c=x.dados&&x.dados.caixa;feito.push(x.id);mudou=true;
     if(c&&((c.vendas||[]).length||(c.movs||[]).length))F.dias.push(vendasParaDia(c.vendas||[],c.movs||[],c.data||hojeStr()));});
   if(mudou){gf();redesenhar();}};
+/* quem entra como caixa aparece na lista da equipe */
 window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac.nome;})){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.papel});gp();}};
 rota();
 };
