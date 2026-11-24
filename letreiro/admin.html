@@ -1619,6 +1619,8 @@ tc.addEventListener('click',function(e){
   else if(a==='c-pagar'){
     if(c.falta<=0){toast('Já está tudo pago','',true);return;}
     var f=b.dataset.f,v2=cent(vin.value)||c.falta,apl=Math.min(v2,c.falta),rec=f==='dinheiro'?v2:apl;
+    if(b.dataset.ok!=='1'){certeza(['Receber '+R(rec)+' em '+FORMAS[f]+'?',f==='dinheiro'&&rec>apl?'Troco: '+R(rec-apl)+'.':(c.falta-apl>0?'Depois disso ainda falta '+R(c.falta-apl)+'.':'Com isso a conta fica paga.'),'Sim, receber '+R(rec)],function(){if(!document.body.contains(b))return;b.dataset.ok='1';b.click();});return;}
+    b.dataset.ok='';
     m.pags.push({f:f,valor:apl,rec:rec});gp();vin.value='';atualizaConta();
     if(f==='dinheiro'&&rec>apl)toast('Troco: '+R(rec-apl),'Recebeu '+R(rec)+' em dinheiro');
     else if(f!=='dinheiro'&&v2>apl)toast(FORMAS[f]+' de '+R(apl),'Ajustado ao que faltava.');
@@ -2126,7 +2128,7 @@ function certeza(txt,sim){
   f.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(11,11,11,.6);display:flex;align-items:center;justify-content:center;padding:16px';
   f.innerHTML='<div class="parede" role="alertdialog" aria-modal="true" aria-labelledby="certeza-h" aria-describedby="certeza-p" style="max-width:420px;width:100%;margin:0">'+
     '<h3 id="certeza-h" style="margin-top:0"></h3><p id="certeza-p" style="margin:.4rem 0 1.2rem"></p>'+
-    '<div style="display:flex;flex-wrap:wrap;gap:.6rem"><button type="button" class="btn ambar" data-c="sim"></button><button type="button" class="btn claro" data-c="nao">Não, voltar</button></div></div>';
+    '<div style="display:flex;flex-wrap:wrap;gap:.6rem"><button type="button" class="btn ambar" data-c="sim"></button><button type="button" class="btn" data-c="nao" style="background:transparent;color:inherit;border:2px solid currentColor">Não, voltar</button></div></div>';
   f.querySelector('h3').textContent=txt[0];f.querySelector('p').textContent=txt[1];f.querySelector('[data-c="sim"]').textContent=txt[2];
   function fecha(){f.remove();document.removeEventListener('keydown',esc,true);if(volta&&volta.focus)volta.focus();}
   function esc(e){if(e.key==='Escape'){e.preventDefault();fecha();}}
