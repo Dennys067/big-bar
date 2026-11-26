@@ -490,15 +490,25 @@ function aparelho(){var u=navigator.userAgent||'',s=/iPhone/.test(u)?'iPhone':/i
   var b=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'';return s+(b?' · '+b:'');}
 function historicoUI(el){
   if(!el||!ehDono())return;var box=document.getElementById('hist');
-  if(!box){box=document.createElement('div');box.id='hist';box.className='parede';box.style.marginBottom='1.4rem';el.insertAdjacentElement('afterend',box);}
+  if(!box){box=document.createElement('div');box.id='hist';box.className='parede';box.style.marginTop='1.4rem';(el.closest('.tela')||el.parentNode).appendChild(box); /* por último na aba Equipe */
+    if(!document.getElementById('hist-css')){var st=document.createElement('style');st.id='hist-css';
+      st.textContent='#hist .hist-filtros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:.8rem;align-items:end;margin:.6rem 0 0}'+
+        '#hist .hf{display:flex;flex-direction:column;gap:.35rem;min-width:0;margin:0}'+
+        '#hist .hf span{font:700 .8rem/1 var(--f-placa,system-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ambar,#F5A51B)}'+
+        '#hist .hf input,#hist .hf select{display:block;width:100%;box-sizing:border-box;height:52px;min-height:52px;margin:0;padding:0 .75rem;-webkit-appearance:none;appearance:none;background:#221D18;color:var(--creme,#F1E8CF);border:2px solid rgba(241,232,207,.55);border-radius:0;font:500 1.05rem/1 var(--f-texto,system-ui);text-align:left}'+
+        '#hist .hf select{padding-right:2rem;background-image:linear-gradient(45deg,transparent 50%,#F5A51B 50%),linear-gradient(135deg,#F5A51B 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 12px) 50%;background-size:6px 6px;background-repeat:no-repeat}'+
+        '#hist .hf input::-webkit-date-and-time-value{text-align:left}'+
+        '#hist .hist-filtros .btn{height:52px;min-height:52px;margin:0;box-sizing:border-box;white-space:nowrap}'+
+        '@media (max-width:760px){#hist .hist-filtros{grid-template-columns:1fr 1fr}#hist .hist-filtros .hf:first-child{grid-column:1/-1}#hist .hist-filtros .btn{grid-column:1/-1;width:100%}}';
+      document.head.appendChild(st);}}
   if(box.dataset.pronto){carrega();return;}box.dataset.pronto='1';
   var d=new Date(),hoje=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
   box.innerHTML='<h3>Histórico</h3><p class="acs-txt">Quem fez o quê no painel. O próprio banco anota, ninguém apaga. Fica guardado 90 dias.</p>'+
-    '<div class="hist-filtros" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">'+
-      '<label class="campo" style="flex:1 1 140px;margin:0"><span>Dia</span><input type="date" id="hist-dia" value="'+hoje+'" max="'+hoje+'"></label>'+
-      '<label class="campo" style="flex:1 1 140px;margin:0"><span>Pessoa</span><select id="hist-quem"><option value="">Todas</option></select></label>'+
-      '<label class="campo" style="flex:1 1 160px;margin:0"><span>Parte</span><select id="hist-mod">'+HIST_MOD.map(function(x){return '<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label>'+
-      '<button class="btn" type="button" id="hist-atualiza" style="flex:0 0 auto">Atualizar</button></div>'+
+    '<div class="hist-filtros">'+
+      '<label class="hf"><span>Dia</span><input type="date" id="hist-dia" value="'+hoje+'" max="'+hoje+'"></label>'+
+      '<label class="hf"><span>Pessoa</span><select id="hist-quem"><option value="">Todas</option></select></label>'+
+      '<label class="hf"><span>Parte</span><select id="hist-mod">'+HIST_MOD.map(function(x){return '<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label>'+
+      '<button class="btn" type="button" id="hist-atualiza">Atualizar</button></div>'+
     '<p class="acs-txt" id="hist-total" role="status" style="margin:.8rem 0 .4rem"></p><ol id="hist-lista" style="list-style:none;margin:0;padding:0"></ol>';
   ['hist-dia','hist-quem','hist-mod'].forEach(function(id){box.querySelector('#'+id).addEventListener('change',carrega);});
   box.querySelector('#hist-atualiza').addEventListener('click',carrega);
