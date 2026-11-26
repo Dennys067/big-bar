@@ -131,6 +131,7 @@ declare
 begin
   if jsonb_typeof(novo) <> 'object' then raise exception 'dados inválidos' using errcode = '22023'; end if;
   if public.meu_papel() is null then raise exception 'sem acesso ao painel' using errcode = '42501'; end if;
+  if pg_column_size(novo) > 900000 then raise exception 'dados grandes demais' using errcode = '22023'; end if;
   select s.dados into velho from public.site_painel s where s.id = 1;
   velho := coalesce(velho, '{}'::jsonb);
   -- custo dos itens: só quem altera o financeiro muda
@@ -163,10 +164,13 @@ begin
   if nascimento is null or nascimento > current_date - interval '14 years' or nascimento < date '1900-01-01' then
     raise exception 'Data de nascimento inválida.' using errcode = '22023'; end if;
   if char_length(cel) < 10 or char_length(cel) > 13 then raise exception 'Celular inválido. Use DDD + número.' using errcode = '22023'; end if;
+  -- só uma vez: depois do cadastro, nome e dados só mudam pelo dono (o nome assina vendas e cancelamentos)
   update public.equipe_acesso e set nome = completar_cadastro.nome, nascimento = completar_cadastro.nascimento, celular = cel, cadastro_ok = true
-   where e.user_id = auth.uid();
-  if not found then raise exception 'Este e-mail não foi convidado para o painel.' using errcode = '42501'; end if;
+   where e.user_id = auth.uid() and e.ativo and not e.cadastro_ok;
+  if not found then raise exception 'Cadastro já feito ou convite inválido.' using errcode = '42501'; end if;
 end $$;
+revoke all on function public.sem_custo(jsonb) from public;
+revoke all on function public.com_custo(jsonb, jsonb) from public;
 revoke all on function public.completar_cadastro(text, date, text) from public;
 grant execute on function public.completar_cadastro(text, date, text) to authenticated;
 
