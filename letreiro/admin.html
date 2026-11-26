@@ -368,6 +368,10 @@ select:focus-visible,input[type=search]:focus-visible{outline:3px solid var(--am
 .pick-preco .linha-btn{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.6rem}
 .pick-preco .btn.claro{color:var(--creme);border-color:var(--creme)}
 .pick-vazio{margin:.6rem 0;color:#5a4e42}
+.pick-top{margin:0 0 .9rem;padding:.7rem .7rem .8rem;background:var(--preto);border-left:6px solid var(--ambar)}
+.pick-top .pick-sub{margin:0 0 .5rem;color:var(--ambar);display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem}
+.pick-top .pick-sub small{font:600 .85rem/1.2 var(--f-texto,system-ui);color:var(--creme);opacity:.85}
+.pick-top .pick-it{min-height:60px;box-shadow:3px 3px 0 var(--ambar)}
 .mesa-barra .st b{color:var(--ambar);font-variant-numeric:tabular-nums}
 
 /* ---------- caixa ---------- */
@@ -850,6 +854,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
       </div>
       <div class="picker">
         <h3>Adicionar do cardápio</h3>
+        <div id="pick-top"></div>
         <div class="pick-cats" role="group" aria-label="Categoria" id="pick-cats"></div>
         <label class="campo pick-busca"><span class="vh">Buscar no cardápio</span><input type="search" id="pick-busca" placeholder="Buscar: heineken, batata…" autocomplete="off"></label>
         <div id="pick-preco"></div>
@@ -957,7 +962,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=764a0279"></script>
+<script src="big-sync.js?v=42b8d149"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1471,6 +1476,39 @@ function renderPickCats(){
   document.getElementById('pick-cats').innerHTML=S.cardapio.map(function(c){return '<button type="button" data-acao="m-cat" data-i="'+c.id+'" aria-pressed="'+(c.id===pickCat&&!pickBusca)+'">'+esc(c.nome)+'</button>';}).join('');
 }
 function normal(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+/* ---------- mais pedidos (seleção rápida) ---------- */
+function contaVendas(vendas){var o={};(vendas||[]).forEach(function(v){(v.itens||[]).forEach(function(i){var k=i.base||i.nome;if(k)o[k]=(o[k]||0)+i.qtd;});});return o;}
+function diaMenos(n){var d=new Date();d.setDate(d.getDate()-n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+/* guarda quantos de cada item saíram por dia (vai pro banco junto com a equipe, assim todo mundo vê o ranking) */
+function anotaVendidos(){var V=P.vendidos=P.vendidos||{},lim=diaMenos(40);
+  if(typeof F!=='undefined'&&F&&F.dias)F.dias.forEach(function(r){if(!r||!r.d||r.d<lim||V[r.d]||!r.it)return;var o={};Object.keys(r.it).forEach(function(k){o[k]=r.it[k][0];});V[r.d]=o;});
+  if(P.caixa&&P.caixa.vendas&&P.caixa.vendas.length){var d=P.caixa.data||hojeStr(),hj=contaVendas(P.caixa.vendas),o=V[d]||{};Object.keys(hj).forEach(function(k){o[k]=Math.max(o[k]||0,hj[k]);});V[d]=o;}
+  Object.keys(V).forEach(function(d){if(d<lim)delete V[d];});}
+function maisPedidos(max){
+  var lim=diaMenos(30),dias={},cont={};
+  if(typeof F!=='undefined'&&F&&F.dias)F.dias.forEach(function(r){if(!r||!r.d||r.d<lim||!r.it)return;var o=dias[r.d]=dias[r.d]||{};Object.keys(r.it).forEach(function(k){o[k]=(o[k]||0)+r.it[k][0];});});
+  var V=P.vendidos||{};Object.keys(V).forEach(function(d){if(d>=lim)dias[d]=V[d];});
+  if(P.caixa&&P.caixa.vendas&&P.caixa.vendas.length){var d=P.caixa.data||hojeStr(),hj=contaVendas(P.caixa.vendas),o=dias[d]||{},j={};Object.keys(o).concat(Object.keys(hj)).forEach(function(k){j[k]=Math.max(o[k]||0,hj[k]||0);});dias[d]=j;}
+  Object.keys(dias).forEach(function(d){var o=dias[d];Object.keys(o).forEach(function(k){var n=normal(k);cont[n]=(cont[n]||0)+(+o[k]||0);});});
+  var todos=[];S.cardapio.forEach(function(c,ci){c.grupos.forEach(function(g){if(/adicion/i.test(g.nome))return;g.itens.forEach(function(i,ii){if(i.nome)todos.push({i:i,ci:ci,ii:ii,q:cont[normal(i.nome)]||0});});});});
+  var vivos=todos.filter(function(x){return !x.i.esgotado;});
+  var top=vivos.filter(function(x){return x.q>0;}).sort(function(a,b){return b.q-a.q;}).slice(0,max);
+  var temVenda=top.length>0;
+  if(top.length<max){var ja={};top.forEach(function(x){ja[x.i.id]=1;});
+    /* sem venda suficiente: completa com os primeiros itens de cada categoria, alternando */
+    var resto=vivos.filter(function(x){return !ja[x.i.id];}).sort(function(a,b){return (cent(b.i.preco)?1:0)-(cent(a.i.preco)?1:0)||a.ii-b.ii||a.ci-b.ci;});
+    top=top.concat(resto.slice(0,max-top.length));}
+  return {itens:top.map(function(x){return x.i;}),temVenda:temVenda};
+}
+function renderPickTop(qn){
+  var box=document.getElementById('pick-top');if(!box)return;
+  if(pickBusca){box.innerHTML='';return;}
+  var r=maisPedidos(window.matchMedia&&matchMedia('(max-width:600px)').matches?6:8);if(!r.itens.length){box.innerHTML='';return;}
+  box.innerHTML='<div class="pick-top" role="group" aria-label="Mais pedidos"><p class="pick-sub">Mais pedidos <small>'+(r.temVenda?'os que mais saíram nos últimos 30 dias':'sugestões, até ter vendas registradas')+'</small></p><div class="pick-grade">'+r.itens.map(function(i){
+    var pc=cent(i.preco),q=qn[i.id]||0;
+    return '<button type="button" class="pick-it" data-acao="m-add" data-i="'+i.id+'"><span class="n">'+esc(i.nome)+'</span>'+(pc?'<span class="p">'+R(pc)+'</span>':'<span class="p sem">sem preço</span>')+
+      (q?'<span class="qt"><span class="vh">, já tem </span>'+q+'<span class="vh"> na comanda</span></span>':'')+'</button>';}).join('')+'</div></div>';
+}
 function renderPickItens(){
   var m=P.mesas[mesaAtual],qn={};novos(m).forEach(function(l){if(l.iid)qn[l.iid]=(qn[l.iid]||0)+l.qtd;});
   var grupos;
@@ -1486,6 +1524,7 @@ function renderPickItens(){
   }).join('');
   if(pickBusca&&!grupos[0].itens.length)h='<p class="pick-vazio">Nada com “'+esc(pickBusca)+'” no cardápio.</p>';
   document.getElementById('pick-itens').innerHTML=h;
+  renderPickTop(qn);
 }
 function renderPickPreco(){
   var box=document.getElementById('pick-preco');
@@ -1674,7 +1713,7 @@ tc.addEventListener('click',function(e){
     var venda={id:id('v'),mesa:mesaNome(m.id,m),garcom:m.garcom,hora:agora(),caixa:pf.nome,
       itens:c.ev.map(function(l){return {nome:l.nome+(descLinha(l)?' ('+descLinha(l)+')':''),base:l.nome,qtd:l.qtd,unit:unit(l),por:l.por||m.garcom};}),
       subtotal:c.sub,servico:c.serv,desconto:c.desc,total:c.tot,pags:m.pags.slice(),troco:c.troco,pessoas:m.pessoas};
-    P.caixa.vendas.push(venda);delete P.mesas[m.id];gp();ultimaVenda=venda;
+    P.caixa.vendas.push(venda);delete P.mesas[m.id];anotaVendidos();gp();ultimaVenda=venda;
     toast('Conta fechada!',c.troco?'Troco: '+R(c.troco):venda.mesa+' liberada');location.hash='#caixa';}
 });
 tc.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.id==='c-valor'){e.preventDefault();}});
@@ -1720,7 +1759,7 @@ function renderFechamento(){
 document.getElementById('fech-corpo').addEventListener('click',function(e){
   var b=e.target.closest('[data-acao]');if(!b)return;
   if(b.dataset.acao==='f-encerrar'){encerrarAberto=!encerrarAberto;renderFechamento();var x=document.querySelector(encerrarAberto?'[data-acao="f-encerrar-sim"]':'[data-acao="f-encerrar"]');if(x)x.focus();}
-  else if(b.dataset.acao==='f-encerrar-sim'){var t=totaisDia();var idDia=window.BIG_SYNC?BIG_SYNC.arquivarDia(JSON.parse(JSON.stringify({caixa:P.caixa,cancelados:P.cancelados||[],fechadoPor:PF().nome||PF().tipo,fechadoEm:new Date().toISOString()}))):null;if(idDia&&BIG_SYNC.podeFin()){F.importados=(F.importados||[]).concat(idDia);}if(typeof finFecharDia==='function'&&(!window.BIG_SYNC||BIG_SYNC.podeFin()))finFecharDia();P.historico.unshift({data:new Date().toLocaleDateString('pt-BR'),total:t.tot,n:t.n,gaveta:t.gaveta});P.historico=P.historico.slice(0,30);
+  else if(b.dataset.acao==='f-encerrar-sim'){anotaVendidos();var t=totaisDia();var idDia=window.BIG_SYNC?BIG_SYNC.arquivarDia(JSON.parse(JSON.stringify({caixa:P.caixa,cancelados:P.cancelados||[],fechadoPor:PF().nome||PF().tipo,fechadoEm:new Date().toISOString()}))):null;if(idDia&&BIG_SYNC.podeFin()){F.importados=(F.importados||[]).concat(idDia);}if(typeof finFecharDia==='function'&&(!window.BIG_SYNC||BIG_SYNC.podeFin()))finFecharDia();P.historico.unshift({data:new Date().toLocaleDateString('pt-BR'),total:t.tot,n:t.n,gaveta:t.gaveta});P.historico=P.historico.slice(0,30);
     P.caixa={data:hojeStr(),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};P.cancelados=[];ultimaVenda=null;encerrarAberto=false;gp();toast('Dia encerrado!','Total '+R(t.tot));location.hash='#caixa';}
 });
 

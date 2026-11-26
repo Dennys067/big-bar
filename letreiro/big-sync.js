@@ -118,6 +118,7 @@ function juntaCaixa(meu,banco){
 function juntaGeral(meu,banco){
   if(!banco||!meu)return meu;var j=JSON.parse(JSON.stringify(meu)),cs={};
   (j.cancelados||[]).forEach(function(c){cs[canon(c)]=1;});(banco.cancelados||[]).forEach(function(c){if(!cs[canon(c)])j.cancelados.push(c);});
+  var bv=banco.vendidos||{},jv=j.vendidos=j.vendidos||{},lim=new Date(Date.now()-40*864e5).toISOString().slice(0,10);Object.keys(bv).forEach(function(d){if(d<lim)return;var o=jv[d]=jv[d]||{};Object.keys(bv[d]||{}).forEach(function(k){o[k]=Math.max(o[k]||0,bv[d][k]||0);});});
   return j;}
 function executa(op){
   if(op.t==='rpc_site')return sb.rpc('salvar_site',{dados:op.dados});
@@ -137,7 +138,7 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden&&ini
 
 /* ---------- gravar ---------- */
 function partesPDV(P){
-  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[]},caixa:P.caixa||{},mesas:P.mesas||{}};}
+  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[],vendidos:P.vendidos||{}},caixa:P.caixa||{},mesas:P.mesas||{}};}
 function mudou(tipo){
   if(!usuario||!iniciou)return;
   if(tipo==='site'||tipo==='fin'){if(!pode(tipo))return;var d=ler(K[tipo]);if(!d)return;if(tipo==='site')d=limpaSite(d);var c=canon(d);
@@ -173,7 +174,7 @@ function pendente(chave){return !!fila[chave];}
 function caixaVazio(){var d=new Date(),p=function(n){return (n<10?'0':'')+n;};return {data:d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};}
 function montaPDV(){if(ultimo.caixa==null&&ultimo.geral==null&&!Object.keys(ultimo.mesas).length)return null;
   var g={};try{g=JSON.parse(ultimo.geral||'{}');}catch(e){}
-  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[]};
+  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[],vendidos:g.vendidos||{}};
   try{P.caixa=ultimo.caixa?JSON.parse(ultimo.caixa):caixaVazio();}catch(e){P.caixa=caixaVazio();}
   Object.keys(ultimo.mesas).sort().forEach(function(k){try{P.mesas[k]=JSON.parse(ultimo.mesas[k]);}catch(e){}});
   return P.caixa?P:null;}
