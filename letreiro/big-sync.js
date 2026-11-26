@@ -327,7 +327,14 @@ function acessos(el){
       '<label class="campo"><span>E-mail</span><input type="email" id="acs-email" inputmode="email" autocomplete="off" placeholder="email@da.pessoa"></label>'+
       '<span class="seg" role="group" aria-label="Papel"><button type="button" data-papel="garcom" aria-pressed="true">Garçom</button><button type="button" data-papel="caixa" aria-pressed="false">Caixa</button><button type="button" data-papel="dono" aria-pressed="false">Dono</button></span>'+
       '<button class="btn ambar" type="submit">Gerar link de acesso</button>'+
-    '</form><div id="acs-link" hidden></div>';
+    '</form><div id="acs-link" hidden></div>'+
+    '<div class="acs-todos" style="margin-top:1.4rem"><h3>Segurança do seu login</h3><p class="acs-txt">Perdeu o celular ou alguém viu sua senha? Isto tira o seu login de todos os aparelhos, inclusive deste. Depois é só entrar de novo.</p>'+
+      '<button class="btn" type="button" id="acs-sair-todos">Sair de todos os aparelhos</button><p class="acs-erro" id="acs-todos-erro" role="alert"></p></div>';
+  el.querySelector('#acs-sair-todos').addEventListener('click',function(){var b=this,er=el.querySelector('#acs-todos-erro');
+    if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='Toque de novo pra confirmar';er.textContent='';setTimeout(function(){if(document.body.contains(b)){b.dataset.ok='';b.textContent='Sair de todos os aparelhos';}},6000);return;}
+    b.disabled=true;b.textContent='Saindo…';
+    sairTodos().catch(function(err){b.disabled=false;b.dataset.ok='';b.textContent='Sair de todos os aparelhos';
+      er.textContent=err&&err.message==='pendente'?'Tem lançamento esperando internet pra subir. Conecte e tente de novo.':erro(err);});});
   var papel='garcom',f=el.querySelector('#acs-novo');
   f.addEventListener('click',function(e){var b=e.target.closest('[data-papel]');if(!b)return;papel=b.dataset.papel;
     f.querySelectorAll('[data-papel]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});});
@@ -364,6 +371,37 @@ function acessos(el){
     }).catch(function(err){ul.innerHTML='<li class="vazio-txt">Não deu pra carregar ('+esc(err.message||err)+').</li>';});}
   el.__lista=carregaLista;
 }
+/* ---------- melhorias do login ---------- */
+/* saída automática: 12 horas sem ninguém mexer no painel, o aparelho sai do login (bom pro celular do balcão).
+   Só sai se não tiver lançamento esperando internet, pra nada ficar preso no aparelho. */
+var K_USO='painelBig.uso',K_EMAIL='painelBig.email',K_SAIU='painelBig.saiu',PARADO_MAX=12*3600e3,ultimoUso=0;
+function marcaUso(){var t=Date.now();if(t-ultimoUso<60e3)return;ultimoUso=t;LS.set(K_USO,String(t));}
+function parado(){var u=+LS.get(K_USO)||0;return u&&Date.now()-u>PARADO_MAX&&!Object.keys(fila).length;}
+function sairPorParado(){LS.set(K_SAIU,'parado');LS.del(K_USO);if(canal)sb.removeChannel(canal);usuario=null;limpaLocal();
+  return sb.auth.signOut({scope:'local'}).catch(function(){}).then(function(){location.hash='#entrar';location.reload();});}
+['pointerdown','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,marcaUso,{passive:true,capture:true});});
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&usuario&&parado())sairPorParado();});
+setInterval(function(){if(usuario&&parado())sairPorParado();},5*60e3);
+/* tela de entrar: botão de mostrar a senha, lembra o último e-mail, e avisa por que saiu */
+function melhoraEntrar(){
+  var f=document.getElementById('form-entrar'),em=document.getElementById('email'),se=document.getElementById('senha');if(!f||!em||!se||f.dataset.melhor)return;f.dataset.melhor='1';
+  var guardado=LS.get(K_EMAIL);if(guardado&&!em.value){em.value=guardado;}
+  var b=document.createElement('button');b.type='button';b.className='mini';b.id='ver-senha';b.textContent='Mostrar senha';b.setAttribute('aria-pressed','false');b.setAttribute('aria-controls','senha');
+  b.style.cssText='margin:-.4rem 0 1rem';
+  b.addEventListener('click',function(){var ver=se.type==='password';se.type=ver?'text':'password';se.style.cssText=ver?'background:#FBF6E8;border-color:var(--tinta);color:var(--tinta)':'';b.textContent=ver?'Esconder senha':'Mostrar senha';b.setAttribute('aria-pressed',String(ver));se.focus();});
+  var lab=se.closest('label');(lab||se).insertAdjacentElement('afterend',b);
+  f.addEventListener('submit',function(){se.type='password';se.style.cssText='';b.textContent='Mostrar senha';b.setAttribute('aria-pressed','false');},true);
+  var porque=LS.get(K_SAIU);if(porque==='parado'||porque==='todos'){LS.del(K_SAIU);var d=f.querySelector('.dica');
+    if(d){var p=document.createElement('p');p.className='dica';p.setAttribute('role','status');p.style.cssText='color:#F1E8CF;font-weight:700';
+      p.textContent=porque==='parado'?'Você saiu sozinho porque o painel ficou 12 horas sem uso. É só entrar de novo.':'Você saiu deste login em todos os aparelhos. Entre de novo aqui.';d.insertAdjacentElement('afterend',p);}}
+  if(guardado)setTimeout(function(){se.focus();},0);
+}
+/* sair deste login em todos os aparelhos (celular perdido, senha que alguém viu) */
+function sairTodos(){
+  if(Object.keys(fila).length){envia();return Promise.reject(new Error('pendente'));}
+  return sb.auth.signOut({scope:'global'}).then(function(r){if(r&&r.error)throw r.error;
+    LS.set(K_SAIU,'todos');LS.del(K_USO);if(canal)sb.removeChannel(canal);usuario=null;limpaLocal();location.hash='#entrar';location.reload();});
+}
 /* ---------- começo ---------- */
 /* sem login: tira do HTML tudo que não é a tela de entrar (o painel só monta depois de entrar) */
 function esvazia(){document.querySelectorAll('.tela:not(#t-entrar)').forEach(function(t){t.innerHTML='';t.hidden=true;});var n=document.querySelector('nav.abas');if(n)n.innerHTML='';}
@@ -371,12 +409,14 @@ function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.filaDe,K.acesso].f
 function inicio(){sb.auth.getSession().then(function(r){
   var s=r&&r.data&&r.data.session;
   if(!s&&r&&r.error){var a=ler(K.acesso);if(a&&a.uid){acesso={papel:a.papel,nome:a.nome};comecar({id:a.uid},true);mostraFaixa();return;}} /* sem internet pra renovar o login */
-  if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);abrir([]);esvazia(); /* a fila fica: sobe no próximo login */
+  if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);LS.del(K_USO);abrir([]);esvazia();melhoraEntrar(); /* a fila fica: sobe no próximo login */
     if(linkErro)setTimeout(function(){caixaCentral('Link vencido','Esse link de acesso já foi usado ou venceu. Peça um novo ao dono do Big, ou toque em "Esqueci a senha" na tela de entrar.');},0);
     return;}
   if(linkTipo==='invite'||linkTipo==='recovery'){telaSenha(s.user);return;}
+  if(parado()){sairPorParado();return;}
+  if(!LS.get(K_USO))LS.set(K_USO,String(Date.now()));
   iniciar(s.user);
-}).catch(function(e){if(window.console)console.error('[big-sync]',e);abrir([]);});}
+}).catch(function(e){if(window.console)console.error('[big-sync]',e);abrir([]);esvazia();melhoraEntrar();});}
 /* espera a página inteira (o app vem depois deste arquivo) */
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inicio);else setTimeout(inicio,0);
 sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&iniciou&&usuario){location.hash='#entrar';location.reload();}});
@@ -398,7 +438,8 @@ window.BIG_SYNC={
   perfilFixo:function(){return acesso&&acesso.papel!=='dono'?{tipo:acesso.papel,nome:acesso.nome}:null;},
   pendentes:function(){return Object.keys(fila).length;},
   acessos:acessos,
-  entrar:function(email,senha){return sb.auth.signInWithPassword({email:email,password:senha}).then(function(r){if(r.error)throw r.error;return r.data;});},
+  entrar:function(email,senha){return sb.auth.signInWithPassword({email:email,password:senha}).then(function(r){if(r.error)throw r.error;LS.set(K_EMAIL,email);LS.set(K_USO,String(Date.now()));return r.data;});},
+  sairTodos:sairTodos,
   esqueci:function(email){return sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}).then(function(r){if(r.error)throw r.error;});},
   sair:function(){
     if(Object.keys(fila).length){envia();return Promise.reject(new Error('pendente'));}
