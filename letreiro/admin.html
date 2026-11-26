@@ -2303,7 +2303,7 @@ window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac
 var IMP=(function(){
   var K='painelBig.imp.cfg',KF='painelBig.imp.feitos',QZ_URL='https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
   var cfg={};try{cfg=JSON.parse(localStorage.getItem(K))||{};}catch(e){cfg={};}
-  if(cfg.papel!==58)cfg.papel=80;if(!cfg.setor)cfg.setor={};if(!/^(860|850|asc)$/.test(cfg.cp||''))cfg.cp='860';if(cfg.logo!==false)cfg.logo=true;
+  if(cfg.papel!==58)cfg.papel=80;if(!cfg.setor)cfg.setor={};if(!/^(860|850|asc)$/.test(cfg.cp||''))cfg.cp='860';if(cfg.logo!==false)cfg.logo=true;if(cfg.modelo!=='1')cfg.modelo='2';
   var feitos={};try{feitos=JSON.parse(localStorage.getItem(KF))||{};}catch(e){feitos={};}
   var st={qz:'',lista:[],erro:'',ocupado:false,falhouEm:0,carregando:null,prev:false,procurando:false};
   function salvaCfg(){try{localStorage.setItem(K,JSON.stringify(cfg));}catch(e){}}
@@ -2412,7 +2412,7 @@ var IMP=(function(){
   function mesaTitulo(d,m){var t=nomeMesa(m),L=quebra(t,d.W/2);d.al(1).b(1).sz(2,2);L.forEach(function(x){d.ln(x);});d.sz(1,1).b(0);}
 
   /* ---- papel de cozinha / bar ---- */
-  function ticketSetor(m,setor,ls,reimp){
+  function ticketSetor2(m,setor,ls,reimp){
     var d=new Doc(),W=d.W;
     cabecalho(d,setor==='bar'?'BAR':'COZINHA',reimp);
     mesaTitulo(d,m);
@@ -2437,7 +2437,7 @@ var IMP=(function(){
   }
 
   /* ---- conta: QTD | DESCRIÇÃO | VALOR ---- */
-  function ticketConta(m){
+  function ticketConta2(m){
     var d=new Doc(),W=d.W,c=contaCalc(m);
     cabecalho(d,'CONTA');
     mesaTitulo(d,m);
@@ -2476,6 +2476,33 @@ var IMP=(function(){
     rodape(d,true);
     return d.bytes();
   }
+
+
+  /* ---- Modelo 1: o primeiro layout (simples, só texto). Modelo 2 (padrão): logo, faixas e colunas ---- */
+  function ticketSetor(m,setor,ls,reimp){return cfg.modelo==='1'?ticketSetor1(m,setor,ls,reimp):ticketSetor2(m,setor,ls,reimp);}
+  function ticketConta(m){return cfg.modelo==='1'?ticketConta1(m):ticketConta2(m);}
+  function cab1(d,titulo){d.al(1).b(1).ln('BIG BAR E PROSA').sz(2,2).ln(titulo).sz(1,1).b(0);}
+  function duas1(d,a,b,w){a=limpo(a);b=limpo(b);w=w||d.W;var sp=w-a.length-b.length;if(sp<1){quebra(a,w).forEach(function(x){d.ln(x);});d.ln(dir(b,w));}else d.ln(a+' '.repeat(sp)+b);}
+  function ticketSetor1(m,setor,ls,reimp){
+    var d=new Doc(),W=d.W;cab1(d,setor==='bar'?'BAR':'COZINHA');if(reimp)d.ln('** REIMPRESSÃO **');
+    d.linha('-').al(1).b(1).sz(2,2);quebra(maiusc(mesaNome(m.id,m)),W/2).forEach(function(x){d.ln(x);});d.sz(1,1).b(0).al(0);
+    var hs=ls.map(function(l){return l.hora;}).filter(Boolean).sort(),por=ls.map(function(l){return l.por;}).filter(Boolean),g=por[por.length-1]||m.garcom||'';
+    var pl='Pedido: '+(hs.length?hs[hs.length-1]:agora()),il='Impresso: '+hoje()+' '+agora();if(pl.length+3+il.length<=W)d.ln(pl+'   '+il);else{d.ln(pl);d.ln(il);}if(g)d.ln('Garçom: '+limpo(g));
+    d.linha('-');
+    ls.forEach(function(l,i){if(i)d.ln();d.b(1).sz(2,2).ln(l.qtd+'x').sz(1,2);quebra(maiusc(l.nome),W).forEach(function(x){d.ln(x);});d.sz(1,1).b(0);
+      var ds=descLinha(l);if(ds)quebra(ds,W-3).forEach(function(x){d.ln('   '+x);});
+      var o=limpo(l.obs);if(o){d.b(1);quebra('OBS: '+o,W-3).forEach(function(x){d.ln('   '+x);});d.b(0);}});
+    var q=ls.reduce(function(s,l){return s+l.qtd;},0);
+    d.linha('-').al(1).ln(q+(q===1?' item':' itens')).corte();return d.bytes();}
+  function ticketConta1(m){
+    var d=new Doc(),W=d.W,c=contaCalc(m);cab1(d,'CONTA');d.linha('-').al(1).b(1).sz(2,2);quebra(maiusc(mesaNome(m.id,m)),W/2).forEach(function(x){d.ln(x);});d.sz(1,1).b(0).al(0);
+    var dl=hoje()+' '+agora(),gl=m.garcom?'Garçom: '+limpo(m.garcom):'';if(!gl||dl.length+3+gl.length<=W)d.ln(dl+(gl?'   '+gl:''));else{d.ln(dl);d.ln(gl);}d.linha('-');
+    var ag={},ord=[];c.ev.forEach(function(l){var k=l.nome+'|'+descLinha(l)+'|'+unit(l);if(!ag[k]){ag[k]={nome:l.nome,d:descLinha(l),u:unit(l),q:0};ord.push(k);}ag[k].q+=l.qtd;});
+    ord.forEach(function(k){var a=ag[k];duas1(d,a.q+'x '+a.nome,rs(a.u*a.q));if(a.d)quebra(a.d,W-3).forEach(function(x){d.ln('   '+x);});if(a.q>1)d.ln('   '+rs(a.u)+' cada');});
+    d.linha('-');duas1(d,'Subtotal',rs(c.sub));if(c.serv)duas1(d,'Serviço (10%)',rs(c.serv));if(c.desc)duas1(d,'Desconto','- '+rs(c.desc));
+    d.b(1).sz(2,2);duas1(d,'TOTAL',rs(c.tot),W/2);d.sz(1,1).b(0);
+    if(m.pessoas>1)duas1(d,'Por pessoa ('+m.pessoas+')',rs(c.pp));if(c.pago)(duas1(d,'Já pago',rs(c.pago)),duas1(d,'Falta',rs(Math.max(0,c.falta))));
+    d.linha('-').al(1).ln('Obrigado pela preferência!').ln('Não é documento fiscal').corte();return d.bytes();}
 
   /* ---- prévia: desenha OS MESMOS BYTES que vão pra impressora (fonte A 12x24, 8 pontos/mm) ---- */
   function desenha(bytes,dots){
@@ -2612,6 +2639,8 @@ var IMP=(function(){
       '<p class="vazio-txt">Só tem uma impressora? Escolha a mesma nas duas: sai um papel para cada setor.</p>'+
       '<div class="imp-bts"><button class="btn" type="button" data-imp-acao="procurar">Procurar impressoras</button>'+
       '<span class="seg" role="group" aria-label="Largura do papel"><button type="button" data-imp-acao="papel" data-p="80" aria-pressed="'+(cfg.papel===80)+'">80 mm</button><button type="button" data-imp-acao="papel" data-p="58" aria-pressed="'+(cfg.papel===58)+'">58 mm</button></span></div>'+
+      '<label class="campo"><span>Modelo do papel</span><select data-imp="modelo">'+
+        [['2','Modelo 2 · com logo, faixas e colunas (atual)'],['1','Modelo 1 · simples, só texto']].map(function(o){return '<option value="'+o[0]+'"'+(cfg.modelo===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>'+
       '<div class="duo"><label class="campo"><span>Acentos (página de códigos)</span><select data-imp="cp">'+
         [['860','CP860 · português (recomendado)'],['850','CP850 · multilíngue'],['asc','Sem acento (impressora antiga)']].map(function(o){return '<option value="'+o[0]+'"'+(cfg.cp===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>'+
       '<label class="imp-chk" style="align-self:end"><input type="checkbox" data-imp="logo"'+(cfg.logo?' checked':'')+'> <span>Logo no topo</span></label></div>'+
@@ -2630,7 +2659,7 @@ var IMP=(function(){
   cx.addEventListener('change',function(e){var t=e.target;
     if(t.dataset.imp==='ligada'){cfg.ligada=t.checked;salvaCfg();if(cfg.ligada){marcaTudoFeito();procurar();toast('Estação de impressão ligada','Os próximos pedidos saem aqui.');}else{st.erro='';aviso();toast('Estação de impressão desligada');}}
     else if(t.dataset.imp==='logo'){cfg.logo=t.checked;salvaCfg();redesenhaCard();}
-    else if(t.dataset.imp){cfg[t.dataset.imp]=t.value;salvaCfg();if(t.dataset.imp==='cp'){t.blur();redesenhaCard();}}
+    else if(t.dataset.imp){cfg[t.dataset.imp]=t.value;salvaCfg();if(t.dataset.imp==='cp'||t.dataset.imp==='modelo'){t.blur();redesenhaCard();}}
     else if(t.dataset.impCat){cfg.setor[t.dataset.impCat]=t.value;salvaCfg();}});
   cx.addEventListener('click',function(e){var b=e.target.closest('[data-imp-acao]');if(!b)return;var a=b.dataset.impAcao;
     if(a==='procurar')procurar();
