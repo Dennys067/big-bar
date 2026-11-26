@@ -644,6 +644,37 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 .cx-mais{margin:0 0 1rem}.cx-mais>summary{cursor:pointer;display:inline-flex;align-items:center;min-height:44px;font:700 .95rem/1 var(--f-placa);text-transform:uppercase;letter-spacing:.1em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;color:var(--tinta)}.cx-mais>summary::marker{color:var(--ambar)}.cx-mais[open]>summary{margin-bottom:.6rem}
 #aviso-conta{position:fixed;right:16px;bottom:16px;z-index:350;display:flex;flex-direction:column;gap:.5rem;max-width:min(360px,calc(100vw - 32px))}#aviso-conta .ac{display:flex;align-items:center;gap:.6rem;background:var(--preto);color:var(--creme);border-left:6px solid var(--ambar);padding:.6rem .6rem .6rem .9rem;box-shadow:5px 5px 0 var(--ambar-gasto);font:600 1rem/1.25 var(--f-texto)}#aviso-conta .ac b{color:var(--ambar)}#aviso-conta .ac a{color:var(--ambar);font-weight:800;white-space:nowrap;min-height:44px;display:inline-flex;align-items:center}#aviso-conta .ac button{background:transparent;border:0;color:var(--creme);font-size:1.4rem;min-width:44px;min-height:44px;cursor:pointer}
 .restaurar{display:none!important}
+
+/* ---------- LISTAS LEGIVEIS: linhas alternadas, separação e cor de situação ---------- */
+.cx-lista,.mov-lista,.pag-lista,.eq-lista,.cp-lista,.est-lista,.lista,.horarios-lista,#hoje-lista{--zebra:rgba(241,232,207,.065);--zebra-hover:rgba(245,165,27,.14)}
+.cx-lista>li:nth-child(even) .cx-linha,.mov-lista>li:nth-child(even),.pag-lista>li:nth-child(even),.eq-lista>.eq-it:nth-child(even),.cp-lista>.cp:nth-child(even),.est-lista>.est:nth-child(even),.lista>.it:nth-child(even),.horarios-lista>.dia:nth-child(even),#hoje-lista>.ponto:nth-child(even),.vg:nth-of-type(even),.acerto:nth-of-type(even){background:var(--zebra,rgba(241,232,207,.065))}
+.cx-linha,.mov-lista li,.pag-lista li,.eq-it,.cp,.est,.it,.dia,#hoje-lista .ponto,.vg,.acerto{padding-left:.75rem;padding-right:.75rem;box-shadow:inset 5px 0 0 transparent;transition:background-color .12s}
+.cx-linha{border-bottom-color:rgba(241,232,207,.1)}
+.cx-linha:hover,.cx-linha:focus-visible{background:var(--zebra-hover)!important}
+.cx-linha .n{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .1rem}
+/* mesa pedindo a conta: faixa âmbar na esquerda e fundo puxado pro âmbar */
+.cx-linha.pede{background:rgba(245,165,27,.17)!important;box-shadow:inset 6px 0 0 var(--ambar)}
+.cx-linha.pede:hover{background:rgba(245,165,27,.26)!important}
+/* item lançado e ainda não enviado */
+.cx-linha.tem-novo{box-shadow:inset 6px 0 0 rgba(241,232,207,.55)}
+.cx-linha.pede.tem-novo{box-shadow:inset 6px 0 0 var(--ambar)}
+/* contas a pagar: cor pela situação */
+.cp.cp-vencida{box-shadow:inset 5px 0 0 #f0a49e}
+.cp.cp-avencer{box-shadow:inset 5px 0 0 var(--ambar)}
+.cp.cp-paga{box-shadow:inset 5px 0 0 #9fd88f}
+.cp.cp-paga .n,.cp.cp-paga .v{opacity:.7}
+/* estoque acabando */
+.est.baixo{box-shadow:inset 5px 0 0 #f0a49e}
+/* tabelas do financeiro */
+.tb td,.tb th{padding-left:.6rem;padding-right:.6rem}
+.tb:not(.tb-pares) tbody tr:nth-child(even) td,.tb-pares tbody tr.z td{background:rgba(241,232,207,.065)}
+.tb:not(.tb-pares) tbody tr:hover td{background:rgba(245,165,27,.1)}
+.tb tbody tr.hj td{background:rgba(245,165,27,.16)}
+/* no PC o cardápio e os horários viram 2 colunas: aí cada linha vira um bloquinho separado (listra alternada ficaria xadrez) */
+@media (min-width:900px){
+  .cat-grupos.um .lista>.it,.horarios-lista>.dia{background:rgba(241,232,207,.055)!important;border-bottom:0;margin-bottom:.45rem}
+}
+@media print{.cx-linha,.tb td{background:none!important;box-shadow:none!important}}
 </style>
 </head>
 <body class="fora">
@@ -1526,7 +1557,7 @@ function totaisDia(){
 }
 function linhaCx(m){
   var ev=enviados(m),nv=novos(m);
-  return '<li><a class="cx-linha" href="#conta/'+encodeURIComponent(m.id)+'"><span class="n">'+esc(mesaNome(m.id,m))+(m.conta?'<span class="tag">Conta '+esc(m.contaEm)+'</span>':'')+'</span>'+
+  return '<li><a class="cx-linha'+(m.conta?' pede':'')+(nv.length?' tem-novo':'')+'" href="#conta/'+encodeURIComponent(m.id)+'"><span class="n">'+esc(mesaNome(m.id,m))+(m.conta?'<span class="tag">Conta '+esc(m.contaEm)+'</span>':'')+'</span>'+
     '<span class="m">'+esc(m.garcom||'Sem garçom')+' · '+plural(qtdDe(ev),'item','itens')+' · desde '+esc(m.abertaEm)+(nv.length?' · '+nv.length+' não enviado':'')+'</span><span class="v">'+R(totLinhas(ev))+'</span></a></li>';
 }
 function renderCaixa(){
@@ -1933,7 +1964,7 @@ function finPagar(){
     '<label class="campo"><span>Categoria</span><select id="cp-cat"><option value="">Todas as categorias</option>'+CATS.map(function(c){return '<option value="'+c[0]+'"'+(cpCat===c[0]?' selected':'')+'>'+c[1]+'</option>';}).join('')+'</select></label></div>';
   h+='<div class="parede"><h3>Contas ('+lista.length+')</h3>';
   h+=lista.length?'<ul class="cp-lista">'+lista.map(function(x){var st=statusCp(x),nm=esc(x.desc);
-    return '<li class="cp" data-cp="'+x.id+'"><div class="l1"><span class="n">'+nm+'</span><span class="v">'+R(x.valor)+'</span></div>'+
+    return '<li class="cp cp-'+st+'" data-cp="'+x.id+'"><div class="l1"><span class="n">'+nm+'</span><span class="v">'+R(x.valor)+'</span></div>'+
       '<p class="m"><span class="tag '+st+'">'+ST_TXT[st]+'</span>'+(x.rec?'<span class="tag rec">Todo mês</span>':'')+'<span>'+(x.paga?'Paga '+dm(x.pagaEm)+' · '+CONTAS_FIN[x.conta||'banco']:'Vence '+dmy(x.venc))+'</span><span>'+esc(CAT[x.cat]||x.cat)+(x.forn?' · '+esc(x.forn):'')+'</span></p>'+
       '<div class="ctrl">'+(x.paga?'<button class="acao" type="button" data-acao="cp-desfaz">Desfazer pagamento<span class="vh"> de '+nm+'</span></button>':'<button class="acao" type="button" data-acao="cp-pagar" aria-expanded="'+(cpPagando===x.id)+'">Marcar como paga<span class="vh">: '+nm+'</span></button>')+
       '<button class="acao apagar" type="button" data-acao="cp-apagar">Apagar<span class="vh"> '+nm+'</span></button></div>'+
@@ -1974,13 +2005,13 @@ function finFluxo(){
   var ini=F.ini.caixa+F.ini.banco;L.forEach(function(l){if(l.d<de){if(l.tipo==='ent')ini+=l.valor;else if(l.tipo==='sai')ini-=l.valor;}});
   var dias={};L.forEach(function(l){if(l.d<de||l.d>ate)return;var o=dias[l.d]||(dias[l.d]={e:0,s:0,mv:[],prev:false});if(l.tipo==='ent')o.e+=l.valor;else if(l.tipo==='sai')o.s+=l.valor;else o.mv.push(l);if(l.prev)o.prev=true;});
   if(hoje>=de&&hoje<=ate&&!dias[hoje])dias[hoje]={e:0,s:0,mv:[],prev:false};
-  var saldo=ini,te=0,ts=0,rows=Object.keys(dias).sort().map(function(d){var o=dias[d];saldo+=o.e-o.s;te+=o.e;ts+=o.s;var fut=d>hoje;
-    var cl=(fut||o.prev?'prev':'')+(d===hoje?' hj':'');
+  var saldo=ini,te=0,ts=0,rows=Object.keys(dias).sort().map(function(d,zi){var o=dias[d];saldo+=o.e-o.s;te+=o.e;ts+=o.s;var fut=d>hoje;
+    var cl=(fut||o.prev?'prev':'')+(d===hoje?' hj':'')+(zi%2?' z':'');
     return '<tr class="'+cl+'"><td>'+dm(d)+(d===hoje?'<small>hoje</small>':fut?'<small>previsto</small>':'')+'</td><td class="n">'+(o.e?numBR(o.e):'—')+'</td><td class="n neg">'+(o.s?'−'+numBR(o.s):'—')+'</td><td class="n">'+numBR(saldo)+'</td></tr>'+
       (o.mv.length?'<tr class="mv '+cl+'"><td colspan="4"><small>'+o.mv.map(function(x){return esc(x.desc)+' '+R(x.valor);}).join(' · ')+'</small></td></tr>':'');}).join('');
   var h=mesNav()+'<div class="kpis">'+kpi('Saldo no início',R(ini))+kpi('Entradas',R(te))+kpi('Saídas',R(ts))+kpi('Saldo no fim',R(saldo),'inclui o previsto','',true)+'</div>';
   h+='<div class="parede"><h3>Dia a dia</h3><p class="vazio-txt" style="margin-top:0">Entradas pelo dia em que o dinheiro cai (já sem taxa). Linhas apagadas são previstas. Sangria e suprimento só mudam o dinheiro de gaveta pro banco, não o saldo total.</p>'+
-    '<div class="tb-wrap"><table class="tb"><thead><tr><th>Dia</th><th class="n">Entra R$</th><th class="n">Sai R$</th><th class="n">Saldo R$</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">Sem movimento.</td></tr>')+'</tbody></table></div></div>';
+    '<div class="tb-wrap"><table class="tb tb-pares"><thead><tr><th>Dia</th><th class="n">Entra R$</th><th class="n">Sai R$</th><th class="n">Saldo R$</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">Sem movimento.</td></tr>')+'</tbody></table></div></div>';
   corpo(h);
 }
 
