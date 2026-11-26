@@ -365,11 +365,13 @@ function acessos(el){
   el.__lista=carregaLista;
 }
 /* ---------- começo ---------- */
+/* sem login: tira do HTML tudo que não é a tela de entrar (o painel só monta depois de entrar) */
+function esvazia(){document.querySelectorAll('.tela:not(#t-entrar)').forEach(function(t){t.innerHTML='';t.hidden=true;});var n=document.querySelector('nav.abas');if(n)n.innerHTML='';}
 function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.filaDe,K.acesso].forEach(LS.del);}
 function inicio(){sb.auth.getSession().then(function(r){
   var s=r&&r.data&&r.data.session;
   if(!s&&r&&r.error){var a=ler(K.acesso);if(a&&a.uid){acesso={papel:a.papel,nome:a.nome};comecar({id:a.uid},true);mostraFaixa();return;}} /* sem internet pra renovar o login */
-  if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);abrir([]); /* a fila fica: sobe no próximo login */
+  if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);abrir([]);esvazia(); /* a fila fica: sobe no próximo login */
     if(linkErro)setTimeout(function(){caixaCentral('Link vencido','Esse link de acesso já foi usado ou venceu. Peça um novo ao dono do Big, ou toque em "Esqueci a senha" na tela de entrar.');},0);
     return;}
   if(linkTipo==='invite'||linkTipo==='recovery'){telaSenha(s.user);return;}
