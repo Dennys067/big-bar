@@ -926,7 +926,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=ecd4e230"></script>
+<script src="big-sync.js?v=75e727d7"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1002,7 +1002,7 @@ function rota(){
   else if(h==='entrar'||h==='perfil'&&false)h=PERFIS[pf.tipo].abas[0];
   else if(h!=='perfil'){var ok=PERFIS[pf.tipo].abas.concat(PERFIS[pf.tipo].extra);if(ok.indexOf(h)<0)h=PERFIS[pf.tipo].abas[0];}
   if(h==='mesa'&&!mesaValida(arg))h='mesas';
-  if(h==='conta'&&!(P.mesas[arg]&&enviados(P.mesas[arg]).length))h=pf&&pf.tipo!=='garcom'?'caixa':'mesas';
+  if(h==='conta'&&!(P.mesas[arg]&&enviados(P.mesas[arg]).length))h=pf&&!ehGarcom(pf)?'caixa':'mesas';
   document.getElementById('toast').classList.remove('on');
   document.body.classList.toggle('fora',h==='entrar');
   document.body.classList.toggle('sem-abas',h==='perfil');
@@ -1231,6 +1231,8 @@ function plural(n,s,p){return n+' '+(n===1?s:p);}
 
 function lerPerfil(){var fx=window.BIG_SYNC&&BIG_SYNC.perfilFixo();if(fx)return fx;try{var p=JSON.parse(localStorage.getItem(KEY_PF));return p&&PERFIS[p.tipo]?p:null;}catch(e){return null;}}
 function gravarPerfil(p){try{p?localStorage.setItem(KEY_PF,JSON.stringify(p)):localStorage.removeItem(KEY_PF);}catch(e){}}
+/* quem não usa o caixa (garçom, ou equipe sem acesso ao caixa) */
+function ehGarcom(pf){return !!pf&&(pf.tipo==='garcom'||(pf.tipo==='eq'&&!(window.BIG_SYNC&&BIG_SYNC.nivel('caixa')>=1)));}
 function PF(){return lerPerfil()||{tipo:'dono',nome:'Big'};}
 
 /* ---------- dados de exemplo do PDV ---------- */
@@ -1281,7 +1283,7 @@ function novos(m){return m?m.itens.filter(function(l){return !l.env;}):[];}
 function qtdDe(ls){return ls.reduce(function(s,l){return s+l.qtd;},0);}
 function ocupada(m){return !!m&&(m.itens.length>0||ehAvulsa(m.id));}
 function mesaValida(idm){return /^([1-9]|1\d|20)$/.test(idm)||idm==='balcao'||!!P.mesas[idm];}
-function pegaMesa(idm){var m=P.mesas[idm];if(!m){var pf=PF();m={id:idm,nome:'',garcom:pf.tipo==='garcom'?pf.nome:'',abertaEm:agora(),conta:false,contaEm:'',itens:[],servico:false,desc:{t:'rs',v:''},pessoas:1,pags:[]};P.mesas[idm]=m;}return m;}
+function pegaMesa(idm){var m=P.mesas[idm];if(!m){var pf=PF();m={id:idm,nome:'',garcom:ehGarcom(pf)?pf.nome:'',abertaEm:agora(),conta:false,contaEm:'',itens:[],servico:false,desc:{t:'rs',v:''},pessoas:1,pags:[]};P.mesas[idm]=m;}return m;}
 function limpaVazia(idm){var m=P.mesas[idm];if(m&&!m.itens.length&&!ehAvulsa(idm))delete P.mesas[idm];}
 function garcons(){return P.equipe.filter(function(p){return p.fn==='garcom';});}
 function infoItem(iid){var r=null;S.cardapio.forEach(function(c){c.grupos.forEach(function(g){g.itens.forEach(function(i){if(i.id===iid)r={c:c,g:g,i:i};});});});return r;}
@@ -1405,7 +1407,7 @@ function renderComanda(){
   if(!m||!m.itens.length){box.innerHTML='<p class="vazio-txt">Nada lançado ainda. Toque nos itens do cardápio pra lançar.</p>';return;}
   var nv=novos(m),ev=enviados(m),pf=PF(),h='';
   if(nv.length)h+='<p class="rot">Novos · ainda não enviados</p><ul class="lista">'+nv.map(linhaNova).join('')+'</ul>';
-  if(ev.length)h+='<p class="rot">Já enviados</p><ul class="lista">'+ev.map(function(l){return linhaEnviada(l,pf.tipo!=='garcom');}).join('')+'</ul>';
+  if(ev.length)h+='<p class="rot">Já enviados</p><ul class="lista">'+ev.map(function(l){return linhaEnviada(l,!ehGarcom(pf));}).join('')+'</ul>';
   h+='<div class="cmd-tot"><span class="n">Total da mesa</span><span class="pt" aria-hidden="true"></span><span class="v">'+R(totLinhas(ev))+'</span></div>';
   if(nv.length)h+='<p class="cmd-tot-sub">+ '+R(totLinhas(nv))+' em itens novos, que entram quando você enviar.</p>';
   box.innerHTML=h;
@@ -1416,7 +1418,7 @@ function renderMesaAcoes(){
   if(m.conta)h+='<p class="conta-pedida">Conta pedida às '+esc(m.contaEm)+' · o caixa já tá vendo</p>';
   if(m.itens.length){
     h+='<button class="btn '+(m.conta?'claro':'ambar')+'" type="button" data-acao="m-conta">'+(m.conta?'Desfazer pedido de conta':'Pedir conta')+'</button>';
-    if(pf.tipo!=='garcom'&&enviados(m).length)h+='<a class="btn" href="#conta/'+encodeURIComponent(m.id)+'">Receber no caixa</a>';
+    if(!ehGarcom(pf)&&enviados(m).length)h+='<a class="btn" href="#conta/'+encodeURIComponent(m.id)+'">Receber no caixa</a>';
     h+='<button class="btn claro" type="button" data-acao="m-transf" aria-expanded="'+transfAberto+'" aria-controls="transf-box">Transferir / juntar</button>';
     if(transfAberto){
       var ops=todasMesas().filter(function(x){return x!==m.id;}).map(function(x){var d=P.mesas[x];return '<option value="'+esc(x)+'">'+esc(mesaNome(x,d))+' — '+(ocupada(d)?'ocupada, '+R(totLinhas(d.itens)):'livre')+'</option>';}).join('');
@@ -1467,7 +1469,7 @@ function addItem(iid,precoManual){
   if(i.esgotado){toast('Esgotado hoje','Não dá pra lançar '+i.nome+'.',true);return;}
   var pc=precoManual!=null?precoManual:cent(i.preco);
   if(!pc){semPreco=iid;renderPickPreco();var inp=document.getElementById('pick-preco-in');inp.focus();inp.scrollIntoView({block:'center'});return;}
-  var m=pegaMesa(mesaAtual),pf=PF();if(!m.itens.length)m.abertaEm=agora();if(!m.garcom&&pf.tipo==='garcom')m.garcom=pf.nome;
+  var m=pegaMesa(mesaAtual),pf=PF();if(!m.itens.length)m.abertaEm=agora();if(!m.garcom&&ehGarcom(pf))m.garcom=pf.nome;
   var esp=r.c.id==='espetos'&&!/adicion/i.test(r.g.nome),combo=r.c.id==='espetos'&&/combo/i.test(r.g.nome);
   var ex=m.itens.filter(function(l){return !l.env&&l.iid===iid&&!l.obs&&!l.adic.length&&!l.sabor&&l.preco===pc;})[0];
   if(ex)ex.qtd++;else m.itens.push(ln(i.nome,pc,1,{iid:iid,env:false,esp:esp,combo:combo}));
@@ -1491,8 +1493,8 @@ tm.addEventListener('click',function(e){
   else if(a==='m-sabor'&&l){var gs=grupoEspeto(/sabor/i),it=gs&&gs.itens[+b.dataset.s];if(it){l.sabor=l.sabor===it.nome?'':it.nome;gp();manterFoco(renderComanda);}}
   else if(a==='m-adic'&&l){var ga=grupoEspeto(/adicion/i),ad=ga&&ga.itens[+b.dataset.a];if(ad){var k=-1;l.adic.forEach(function(x,ix){if(x.nome===ad.nome)k=ix;});if(k>=0)l.adic.splice(k,1);else l.adic.push({nome:ad.nome,preco:cent(ad.preco)});gp();manterFoco(function(){renderComanda();renderMesaBarra();});}}
   else if(a==='m-enviar'){
-    var nv=novos(m);if(!nv.length)return;var pf=PF(),h=agora(),por=pf.tipo==='garcom'?pf.nome:(m.garcom||pf.nome);
-    nv.forEach(function(x){x.env=true;x.hora=h;x.por=por;});if(typeof baixaEstoque==='function')baixaEstoque(nv);if(!m.garcom&&pf.tipo==='garcom')m.garcom=pf.nome;
+    var nv=novos(m);if(!nv.length)return;var pf=PF(),h=agora(),por=ehGarcom(pf)?pf.nome:(m.garcom||pf.nome);
+    nv.forEach(function(x){x.env=true;x.hora=h;x.por=por;});if(typeof baixaEstoque==='function')baixaEstoque(nv);if(!m.garcom&&ehGarcom(pf))m.garcom=pf.nome;
     gp();renderMesaTudo();renderPickItens();toast('Pedido enviado!',plural(qtdDe(nv),'item','itens')+' · '+h+' · '+por);document.getElementById('h-mesa').focus();}
   else if(a==='m-conta'){
     if(!m.conta&&novos(m).length){toast('Envie os itens novos antes','Ou tire eles da comanda.',true);return;}
@@ -1730,6 +1732,8 @@ document.getElementById('eq-novo').addEventListener('submit',function(e){
    ===================================================================== */
 var KEY_FIN='painelBig.fin.v1';
 PERFIS.dono.abas.push('financeiro');TELAS.push('financeiro');
+/* equipe: abas montadas pelas permissões que o dono liberou */
+if(window.BIG_SYNC&&BIG_SYNC.perfilEq&&BIG_SYNC.perfilFixo())PERFIS.eq=BIG_SYNC.perfilEq();
 NOMES_ABA.financeiro='Financeiro';
 ICONES.financeiro='<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>';
 var SUBS=[['resumo','Resumo'],['pagar','A pagar'],['receber','A receber'],['fluxo','Fluxo'],['contas','Contas'],['dre','DRE'],['acerto','Equipe'],['estoque','Estoque'],['relatorios','Relatórios']];
@@ -2102,7 +2106,7 @@ tf.addEventListener('submit',function(e){
 
 /* custo no Cardápio (só o dono vê) */
 function margemTxt(i){var p=cent(i.preco),c=cent(i.custo);return p&&c?'margem '+pctTxt(pct(p-c,p)):'';}
-function custoHTML(i,nm){if(PF().tipo!=='dono')return '';return '<label class="custo-l"><span>Custo R$</span><input type="text" inputmode="decimal" data-k="custo" value="'+esc(i.custo||'')+'" placeholder="—" aria-label="Custo de '+nm+' em reais"><span class="mg">'+margemTxt(i)+'</span></label>';}
+function custoHTML(i,nm){if(window.BIG_SYNC&&BIG_SYNC.perfilFixo()?BIG_SYNC.nivel('financeiro')<2:PF().tipo!=='dono')return '';return '<label class="custo-l"><span>Custo R$</span><input type="text" inputmode="decimal" data-k="custo" value="'+esc(i.custo||'')+'" placeholder="—" aria-label="Custo de '+nm+' em reais"><span class="mg">'+margemTxt(i)+'</span></label>';}
 
 
 /* ===== ganchos do banco (Firebase) ===== */
@@ -2161,7 +2165,7 @@ function avisoConta(m){var box=document.getElementById('aviso-conta');
   d.querySelector('button').onclick=function(){d.remove();};d.querySelector('a').onclick=function(){d.remove();};
   box.appendChild(d);setTimeout(function(){d.remove();},10000);}
 function confereContas(){var agora={};Object.keys(P.mesas).forEach(function(k){var m=P.mesas[k];if(m&&m.conta)agora[k]=m.contaEm||'1';});
-  if(contaVista){var pf=PF();if(pf.tipo!=='garcom')Object.keys(agora).forEach(function(k){if(!contaVista[k]||contaVista[k]!==agora[k])avisoConta(P.mesas[k]);});}
+  if(contaVista){var pf=PF();if(!ehGarcom(pf))Object.keys(agora).forEach(function(k){if(!contaVista[k]||contaVista[k]!==agora[k])avisoConta(P.mesas[k]);});}
   contaVista=agora;}
 setInterval(confereContas,1500);confereContas();
 /* dono: dias fechados pelo caixa entram no financeiro */
