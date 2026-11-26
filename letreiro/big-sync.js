@@ -242,8 +242,8 @@ function abrir(faltando){
 }
 function comecar(u,offline){
   filaDoLogin(u.id);usuario=u;LS.set(K.entrou,'1');
-  if(!ehDono())LS.set(K.perfil,JSON.stringify({tipo:'eq',nome:acesso.nome}));
-  document.documentElement.classList.toggle('perfil-fixo',!ehDono());
+  LS.set(K.perfil,JSON.stringify({tipo:ehDono()?'dono':'eq',nome:acesso.nome}));
+  document.documentElement.classList.add('perfil-fixo');
   preparaLocal();
   if(offline){abrir([]);return;}
   buscaTudo().then(function(faltando){
@@ -251,6 +251,7 @@ function comecar(u,offline){
     if(leFin()){if(ultimo.fin)LS.set(K.fin,ultimo.fin);else LS.del(K.fin);}else LS.del(K.fin);
     var P=montaPDV();if(P)LS.set(K.pdv,JSON.stringify(P));else LS.del(K.pdv);
     abrir(faltando);
+    try{sb.rpc('registra_entrada',{aparelho:aparelho()}).then(function(){},function(){});}catch(e){}
   }).catch(function(err){if(window.console)console.warn('[big-sync]',err);mostraFaixa();abrir([]);});
 }
 function semAcesso(msg){tiraCortina();cortina.textContent='';
@@ -480,7 +481,44 @@ function acessos(el){
     return sb.from('equipe_acesso').select('user_id,email,nome,papel,ativo,perms,cadastro_ok,nascimento,celular,criado_em').order('criado_em').then(function(r){
       if(r.error)throw r.error;lista=r.data||[];desenha();
     }).catch(function(err){ul.innerHTML='<li class="vazio-txt">Não deu pra carregar ('+esc(erro(err))+').</li>';});}
-  el.__lista=carregaLista;carregaLista();
+  el.__lista=function(){historicoUI(el);return carregaLista();};carregaLista();historicoUI(el);
+}
+/* ---------- histórico (só o dono): quem fez o quê, gravado pelo próprio banco ---------- */
+var HIST_MOD=[['','Todas as partes'],['mesas','Mesas'],['caixa','Caixa'],['cardapio','Cardápio'],['horarios','Horários'],['shows','Shows'],['infos','Infos do site'],['financeiro','Financeiro'],['equipe','Equipe'],['acessos','Acessos'],['login','Entradas no painel']];
+var HIST_NOME={};HIST_MOD.forEach(function(x){HIST_NOME[x[0]]=x[1];});
+function aparelho(){var u=navigator.userAgent||'',s=/iPhone/.test(u)?'iPhone':/iPad/.test(u)?'iPad':/Android/.test(u)?'Android':/Windows/.test(u)?'Windows':/Mac OS/.test(u)?'Mac':/Linux/.test(u)?'Linux':'Aparelho';
+  var b=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'';return s+(b?' · '+b:'');}
+function historicoUI(el){
+  if(!el||!ehDono())return;var box=document.getElementById('hist');
+  if(!box){box=document.createElement('div');box.id='hist';box.className='parede';box.style.marginBottom='1.4rem';el.insertAdjacentElement('afterend',box);}
+  if(box.dataset.pronto){carrega();return;}box.dataset.pronto='1';
+  var d=new Date(),hoje=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  box.innerHTML='<h3>Histórico</h3><p class="acs-txt">Quem fez o quê no painel. O próprio banco anota, ninguém apaga. Fica guardado 90 dias.</p>'+
+    '<div class="hist-filtros" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">'+
+      '<label class="campo" style="flex:1 1 140px;margin:0"><span>Dia</span><input type="date" id="hist-dia" value="'+hoje+'" max="'+hoje+'"></label>'+
+      '<label class="campo" style="flex:1 1 140px;margin:0"><span>Pessoa</span><select id="hist-quem"><option value="">Todas</option></select></label>'+
+      '<label class="campo" style="flex:1 1 160px;margin:0"><span>Parte</span><select id="hist-mod">'+HIST_MOD.map(function(x){return '<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label>'+
+      '<button class="btn" type="button" id="hist-atualiza" style="flex:0 0 auto">Atualizar</button></div>'+
+    '<p class="acs-txt" id="hist-total" role="status" style="margin:.8rem 0 .4rem"></p><ol id="hist-lista" style="list-style:none;margin:0;padding:0"></ol>';
+  ['hist-dia','hist-quem','hist-mod'].forEach(function(id){box.querySelector('#'+id).addEventListener('change',carrega);});
+  box.querySelector('#hist-atualiza').addEventListener('click',carrega);
+  sb.from('equipe_acesso').select('nome').order('nome').then(function(r){var s=box.querySelector('#hist-quem');
+    (r.data||[]).map(function(x){return x.nome;}).concat(['Sistema']).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;s.appendChild(o);});},function(){});
+  carrega();
+  function carrega(){
+    var dia=box.querySelector('#hist-dia').value||hoje,quem=box.querySelector('#hist-quem').value,mod=box.querySelector('#hist-mod').value,ul=box.querySelector('#hist-lista'),tot=box.querySelector('#hist-total');
+    var p=dia.split('-'),ini=new Date(+p[0],+p[1]-1,+p[2]),fim=new Date(+p[0],+p[1]-1,+p[2]+1);
+    tot.textContent='Carregando…';
+    var q=sb.from('historico').select('em,quem,modulo,acao,resumo').gte('em',ini.toISOString()).lt('em',fim.toISOString());
+    if(quem)q=q.eq('quem',quem);if(mod)q=q.eq('modulo',mod);
+    q.order('em',{ascending:false}).limit(300).then(function(r){
+      if(r.error)throw r.error;var L=r.data||[];
+      tot.textContent=L.length?(L.length===300?'Mostrando os 300 mais recentes do dia.':L.length+(L.length===1?' registro.':' registros.')):'Nada registrado nesse dia'+(quem||mod?' com esse filtro':'')+'.';
+      ul.innerHTML=L.map(function(h){var t=new Date(h.em),hr=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);
+        return '<li style="display:grid;grid-template-columns:3.2rem 1fr;gap:.5rem;padding:.5rem 0;border-bottom:1px solid rgba(241,232,207,.18)">'+
+          '<span style="font-weight:700;color:#F5A51B">'+hr+'</span><span><b>'+esc(h.quem)+'</b> · '+esc(HIST_NOME[h.modulo]||h.modulo)+' · '+esc(h.acao)+
+          (h.resumo?'<small style="display:block;opacity:.85;font-size:.95rem">'+esc(h.resumo)+'</small>':'')+'</span></li>';}).join('');
+    }).catch(function(err){tot.textContent=/historico|42P01|PGRST205/.test(String(err&&(err.code||'')+(err.message||'')))?'O histórico ainda não foi ligado no banco.':'Não deu pra carregar ('+erro(err)+').';ul.innerHTML='';});}
 }
 /* ---------- painel de quem não é dono: abas pelas permissões e telas "só ver" ---------- */
 var TELA_MOD={inicio:'infos',mesas:'mesas',mesa:'mesas',caixa:'caixa',conta:'caixa',fechamento:'caixa',cardapio:'cardapio',horarios:'horarios',shows:'shows',infos:'infos',equipe:'equipe',financeiro:'financeiro'};
@@ -578,7 +616,8 @@ window.BIG_SYNC={
   mudou:mudou,arquivarDia:arquivarDia,cancelou:cancelou,erro:erro,
   usuario:function(){return usuario;},
   podeFin:function(){return pode('fin');},
-  perfilFixo:function(){return acesso&&!ehDono()?{tipo:'eq',nome:acesso.nome}:null;},
+  /* o perfil vem do login: sem tela de "Quem é você?" (dono entra como dono, o resto pelas permissões) */
+  perfilFixo:function(){return acesso?{tipo:ehDono()?'dono':'eq',nome:acesso.nome}:null;},
   perfilEq:perfilEq,nivel:nivel,
   pendentes:function(){return Object.keys(fila).length;},
   acessos:acessos,

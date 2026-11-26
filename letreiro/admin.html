@@ -957,7 +957,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=75e727d7"></script>
+<script src="big-sync.js?v=11237aaf"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1030,7 +1030,7 @@ function rota(){
   var entrou=lerEntrou(),pf=lerPerfil();
   if(!entrou)h='entrar';
   else if(!pf)h='perfil';
-  else if(h==='entrar'||h==='perfil'&&false)h=PERFIS[pf.tipo].abas[0];
+  else if(h==='entrar'||h==='perfil'&&window.BIG_SYNC&&BIG_SYNC.perfilFixo())h=PERFIS[pf.tipo].abas[0];
   else if(h!=='perfil'){var ok=PERFIS[pf.tipo].abas.concat(PERFIS[pf.tipo].extra);if(ok.indexOf(h)<0)h=PERFIS[pf.tipo].abas[0];}
   if(h==='mesa'&&!mesaValida(arg))h='mesas';
   if(h==='conta'&&!(P.mesas[arg]&&enviados(P.mesas[arg]).length))h=pf&&!ehGarcom(pf)?'caixa':'mesas';
@@ -1764,7 +1764,7 @@ document.getElementById('eq-novo').addEventListener('submit',function(e){
 var KEY_FIN='painelBig.fin.v1';
 PERFIS.dono.abas.push('financeiro');TELAS.push('financeiro');
 /* equipe: abas montadas pelas permissões que o dono liberou */
-if(window.BIG_SYNC&&BIG_SYNC.perfilEq&&BIG_SYNC.perfilFixo())PERFIS.eq=BIG_SYNC.perfilEq();
+if(window.BIG_SYNC&&BIG_SYNC.perfilEq&&BIG_SYNC.perfilFixo()&&BIG_SYNC.perfilFixo().tipo==='eq')PERFIS.eq=BIG_SYNC.perfilEq();
 NOMES_ABA.financeiro='Financeiro';
 ICONES.financeiro='<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>';
 var SUBS=[['resumo','Resumo'],['pagar','A pagar'],['receber','A receber'],['fluxo','Fluxo'],['contas','Contas'],['dre','DRE'],['acerto','Equipe'],['estoque','Estoque'],['relatorios','Relatórios']];
@@ -2137,7 +2137,7 @@ tf.addEventListener('submit',function(e){
 
 /* custo no Cardápio (só o dono vê) */
 function margemTxt(i){var p=cent(i.preco),c=cent(i.custo);return p&&c?'margem '+pctTxt(pct(p-c,p)):'';}
-function custoHTML(i,nm){if(window.BIG_SYNC&&BIG_SYNC.perfilFixo()?BIG_SYNC.nivel('financeiro')<2:PF().tipo!=='dono')return '';return '<label class="custo-l"><span>Custo R$</span><input type="text" inputmode="decimal" data-k="custo" value="'+esc(i.custo||'')+'" placeholder="—" aria-label="Custo de '+nm+' em reais"><span class="mg">'+margemTxt(i)+'</span></label>';}
+function custoHTML(i,nm){if(window.BIG_SYNC&&BIG_SYNC.perfilFixo()&&BIG_SYNC.perfilFixo().tipo==='eq'?BIG_SYNC.nivel('financeiro')<2:PF().tipo!=='dono')return '';return '<label class="custo-l"><span>Custo R$</span><input type="text" inputmode="decimal" data-k="custo" value="'+esc(i.custo||'')+'" placeholder="—" aria-label="Custo de '+nm+' em reais"><span class="mg">'+margemTxt(i)+'</span></label>';}
 
 
 /* ===== ganchos do banco (Firebase) ===== */
