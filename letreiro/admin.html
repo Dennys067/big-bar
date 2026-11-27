@@ -721,6 +721,30 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
   .btn{letter-spacing:.09em}
   .salvar-barra{padding:.45rem .45rem .45rem .8rem}
 }
+
+/* ===== chamados das mesas (QR Code) ===== */
+.chamados{position:fixed;left:0;right:0;top:0;z-index:350;background:var(--preto);color:var(--creme);border-bottom:4px solid var(--ambar);
+  padding:calc(.5rem + env(safe-area-inset-top)) .75rem .55rem;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.chamados[hidden]{display:none}
+.chamados ul{list-style:none;margin:0 auto;padding:0;max-width:60rem;display:grid;gap:.4rem}
+.chamados li{display:flex;align-items:center;gap:.6rem;background:#221c14;border-radius:10px;padding:.45rem .5rem .45rem .7rem}
+.chamados li.ch-conta{background:#3a2a0e}
+.chamados .ch-ic{font-size:1.4rem;line-height:1;flex:none}
+.chamados .ch-txt{flex:1;min-width:0;font:700 1.15rem/1.15 var(--f-placa);letter-spacing:.02em}
+.chamados .ch-txt a{color:var(--ambar);text-decoration:none}
+.chamados .ch-txt small{display:block;font:500 .9rem/1.2 var(--f-texto);color:rgba(241,232,207,.75)}
+.chamados button{flex:none;appearance:none;border:0;border-radius:8px;background:var(--ambar);color:var(--preto);font:800 1.05rem/1 var(--f-placa);
+  text-transform:uppercase;letter-spacing:.08em;padding:.75rem .9rem;cursor:pointer;min-height:44px}
+.chamados.pisca{animation:chPisca .5s ease-in-out 6 alternate}
+@keyframes chPisca{to{background:var(--ambar-tinta)}}
+@media (prefers-reduced-motion:reduce){.chamados.pisca{animation:none}}
+.mesa-t .selo-chama{position:absolute;top:.4rem;left:.35rem;font:800 .7rem/1 var(--f-placa);letter-spacing:.12em;text-transform:uppercase;background:var(--vermelho);color:#fff;padding:.25rem .35rem}
+.ch-config{margin:1rem 0 0;padding:.8rem .9rem;border:2px dashed currentColor;border-radius:10px;font-size:1rem}
+.ch-config p{margin:0 0 .55rem}
+.ch-config .ch-bts{display:flex;flex-wrap:wrap;gap:.5rem}
+.ch-config button{appearance:none;border:2px solid currentColor;background:transparent;color:inherit;border-radius:8px;font:700 1rem/1 var(--f-placa);
+  text-transform:uppercase;letter-spacing:.06em;padding:.6rem .8rem;cursor:pointer;min-height:44px}
+.ch-config button[aria-pressed="true"]{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
 </style>
 </head>
 <body class="fora">
@@ -872,6 +896,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
     <div class="filtros" role="group" aria-label="Mostrar" id="mesas-filtros"></div>
     <ul class="mesas-grade" id="mesas-grade"></ul>
     <p class="legenda-mesas" aria-hidden="true"><span><i class="l1"></i>Livre</span><span><i class="l2"></i>Ocupada</span><span><i class="l3"></i>Pediu a conta</span></p>
+    <div class="ch-config" id="ch-config" hidden><p><b>Chamados pelo QR Code da mesa.</b> Quando um cliente chama, este aparelho toca e vibra. Deixe o painel aberto e o som do celular ligado.</p><div class="ch-bts"><button type="button" id="ch-testar">Testar som</button><button type="button" id="ch-tela" aria-pressed="false">Tela sempre ligada</button></div><p id="ch-estado" style="margin:.55rem 0 0;font-size:.92rem"></p></div>
     <div class="avulsa-box">
       <button class="btn claro" type="button" data-acao="m-avulsa" aria-expanded="false" aria-controls="avulsa-form">+ Comanda avulsa</button>
       <form class="avulsa-form" id="avulsa-form" hidden novalidate>
@@ -1001,10 +1026,11 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
   </section>
 </main>
 
+<div class="chamados" id="chamados" role="region" aria-label="Chamados das mesas" aria-live="assertive" hidden><ul id="chamados-lista"></ul></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=42b8d149"></script>
+<script src="big-sync.js?v=8b40877c"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1431,9 +1457,9 @@ function renderMesas(){
     var tot=oc?totLinhas(m.itens):0,nv=oc?novos(m).length:0;
     var cab=idm==='balcao'?'<span class="num nome"><small>Venda no</small>Balcão</span>':ehAvulsa(idm)?'<span class="num nome"><small>Comanda</small>'+esc(m.nome)+'</span>':'<span class="num"><small>Mesa</small>'+idm+'</span>';
     var st=!oc?'Livre':m.conta?'Pediu '+esc(m.contaEm):esc((m.garcom||'Sem garçom')+' · '+m.abertaEm);
-    var lab=mesaNome(idm,m)+', '+(!oc?'livre':m.conta?'pediu a conta, '+R(tot):'ocupada, '+R(tot))+(nv?', '+plural(nv,'item novo não enviado','itens novos não enviados'):'');
+    var lab=(chDaMesa(idm)?(chDaMesa(idm)==='conta'?'pediu a conta pelo QR Code, ':'chamando o garçom, '):'')+mesaNome(idm,m)+', '+(!oc?'livre':m.conta?'pediu a conta, '+R(tot):'ocupada, '+R(tot))+(nv?', '+plural(nv,'item novo não enviado','itens novos não enviados'):'');
     return '<li><a class="mesa-t '+cls+'" href="#mesa/'+encodeURIComponent(idm)+'" aria-label="'+esc(lab)+'">'+cab+
-      (cls==='conta'?'<span class="selo-conta" aria-hidden="true">Conta</span>':nv?'<span class="novo-ind" aria-hidden="true"></span>':'')+
+      (cls==='conta'?'<span class="selo-conta" aria-hidden="true">Conta</span>':nv?'<span class="novo-ind" aria-hidden="true"></span>':'')+(chDaMesa(idm)?'<span class="selo-chama" aria-hidden="true">'+(chDaMesa(idm)==='conta'?'Quer a conta':'Chamando')+'</span>':'')+
       '<span class="st" aria-hidden="true">'+st+'</span>'+(oc?'<span class="vl" aria-hidden="true">'+R(tot)+'</span>':'')+'</a></li>';
   }).join('');
   document.getElementById('mesas-grade').innerHTML=html||'<li style="grid-column:1/-1" class="claro-txt">Nenhuma mesa nesse filtro.</li>';
@@ -2236,6 +2262,64 @@ function redesenhar(){var a=document.activeElement;
   if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&document.getElementById('conteudo').contains(a)){precisaRedesenhar=true;return;}
   precisaRedesenhar=false;var pr=rota.primeira;rota.primeira=false;var y=window.scrollY;rota();rota.primeira=pr;window.scrollTo(0,y);}
 document.addEventListener('focusout',function(){if(!precisaRedesenhar)return;setTimeout(function(){var a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;redesenhar();},80);});
+
+/* ===== chamados das mesas (QR Code): toca, vibra e mostra a barra no topo ===== */
+var CH=[],chRing={},chSom=null,chSomOk=false,chWake=null,chQuerTela=false;
+try{chQuerTela=localStorage.getItem('painelBig.telaLigada')==='1';}catch(e){}
+function chDaMesa(idm){var t='';CH.forEach(function(c){if(c.mesa===idm)t=t==='conta'?t:c.tipo;});return t;}
+/* som "plim-plom" gerado aqui mesmo (sem arquivo), tocado por <audio>, que no iPhone toca mesmo com o botão do silencioso */
+function chWav(){var sr=22050,dur=2.2,n=Math.floor(sr*dur),b=new ArrayBuffer(44+n*2),v=new DataView(b);
+  function w(o,t){for(var i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));}
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  var notas=[[0,1318.5],[.38,1046.5],[1.1,1318.5],[1.48,1046.5]];
+  for(var i=0;i<n;i++){var t=i/sr,x=0;notas.forEach(function(nt){var d=t-nt[0];if(d>=0&&d<.7){var env=Math.exp(-d*5.5)*Math.min(1,d*400);
+      x+=env*(Math.sin(2*Math.PI*nt[1]*d)+.35*Math.sin(2*Math.PI*nt[1]*2*d)+.12*Math.sin(2*Math.PI*nt[1]*3*d));}});
+    v.setInt16(44+i*2,Math.max(-1,Math.min(1,x*.62))*32767,true);}
+  return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));}
+function chPrepara(){if(chSom)return;try{chSom=new Audio(chWav());chSom.preload='auto';}catch(e){chSom=null;}}
+/* celular só libera som depois de um toque na tela: o primeiro toque "destrava" */
+function chDestrava(){chPrepara();if(!chSom||chSomOk)return;var v=chSom.volume;chSom.volume=0;
+  var p=chSom.play();if(p&&p.then)p.then(function(){chSom.pause();chSom.currentTime=0;chSom.volume=v||1;chSomOk=true;chEstado();},function(){chSom.volume=v||1;});
+  else{chSom.pause();chSom.volume=v||1;chSomOk=true;}}
+['pointerdown','touchend','keydown'].forEach(function(t){document.addEventListener(t,chDestrava,{passive:true});});
+function chToca(){chPrepara();
+  if(chSom){try{chSom.volume=1;chSom.currentTime=0;var p=chSom.play();if(p&&p.catch)p.catch(function(){});}catch(e){}}
+  if(navigator.vibrate)try{navigator.vibrate([400,150,400,150,800]);}catch(e){}
+  var bar=document.getElementById('chamados');bar.classList.remove('pisca');void bar.offsetWidth;bar.classList.add('pisca');}
+function chTxt(c){return c.tipo==='conta'?'pediu a conta':'chamou o garçom';}
+function chHa(c){var m=Math.max(0,Math.round((Date.now()-Date.parse(c.em))/60000));return m<1?'agora':'há '+m+' min';}
+function chDesenha(){var bar=document.getElementById('chamados'),ul=document.getElementById('chamados-lista');
+  if(!CH.length){bar.hidden=true;document.body.style.paddingTop='';return;}
+  ul.innerHTML=CH.map(function(c){return '<li class="'+(c.tipo==='conta'?'conta':'')+'"><span class="ch-ic" aria-hidden="true">'+(c.tipo==='conta'?'🧾':'🔔')+'</span>'+
+    '<span class="ch-txt"><a href="#mesa/'+encodeURIComponent(c.mesa)+'">'+esc(mesaNome(c.mesa))+'</a> '+chTxt(c)+'<small>'+chHa(c)+'</small></span>'+
+    '<button type="button" data-ch="'+esc(c.id)+'" aria-label="Já vou: '+esc(mesaNome(c.mesa)+' '+chTxt(c))+'">Já vou</button></li>';}).join('');
+  bar.hidden=false;document.body.style.paddingTop=bar.offsetHeight+'px';}
+document.getElementById('chamados').addEventListener('click',function(e){var b=e.target.closest('[data-ch]');if(!b)return;b.disabled=true;
+  BIG_SYNC.chamados.atender(b.dataset.ch).then(function(){toast('Avisado','A mesa sabe que você está indo.');},function(err){b.disabled=false;toast('Não deu','Sem internet agora. Tente de novo.',true);});});
+window.__bigChamados=function(lista,novos){CH=lista||[];
+  document.getElementById('ch-config').hidden=false;chEstado();
+  CH.forEach(function(c){if(!chRing[c.id])chRing[c.id]={n:0,em:0};});
+  if(novos&&novos.length){novos.forEach(function(c){chRing[c.id]={n:1,em:Date.now()};});chToca();
+    var c=novos[novos.length-1];toast(mesaNome(c.mesa)+' '+chTxt(c));}
+  chDesenha();if(/^#mesas/.test(location.hash||'')&&typeof renderMesas==='function')renderMesas();};
+/* toca de novo a cada 1 min enquanto ninguém tocar em "Já vou" (até 3 vezes) */
+setInterval(function(){var tocar=false;CH.forEach(function(c){var r=chRing[c.id];if(r&&r.n>0&&r.n<3&&Date.now()-r.em>60000){r.n++;r.em=Date.now();tocar=true;}});
+  if(tocar)chToca();if(CH.length)chDesenha();},15000);
+function chEstado(){var e=document.getElementById('ch-estado');if(!e)return;
+  var ok=window.BIG_SYNC&&BIG_SYNC.chamados&&BIG_SYNC.chamados.ativo();
+  e.textContent=!ok?'Os chamados ainda não estão ligados no banco.':(chSomOk?'Som liberado neste aparelho.':'Toque em qualquer lugar da tela uma vez para liberar o som.')+(navigator.vibrate?'':' Este aparelho não vibra pelo navegador (iPhone): só toca o som.');
+  document.getElementById('ch-tela').setAttribute('aria-pressed',String(!!chQuerTela));}
+function chPedeTela(){if(!chQuerTela||!('wakeLock' in navigator)||document.hidden||chWake)return;
+  navigator.wakeLock.request('screen').then(function(w){chWake=w;w.addEventListener('release',function(){chWake=null;});},function(){});}
+document.addEventListener('visibilitychange',chPedeTela);
+document.getElementById('ch-testar').addEventListener('click',function(){chDestrava();setTimeout(chToca,150);});
+document.getElementById('ch-tela').addEventListener('click',function(){
+  if(!('wakeLock' in navigator)){toast('Não dá neste aparelho','Mude nas configurações do celular o tempo para apagar a tela.',true);return;}
+  chQuerTela=!chQuerTela;try{localStorage.setItem('painelBig.telaLigada',chQuerTela?'1':'0');}catch(e){}
+  if(chQuerTela)chPedeTela();else if(chWake){chWake.release();chWake=null;}
+  chEstado();toast(chQuerTela?'Tela fica ligada':'Tela volta ao normal',chQuerTela?'Enquanto o painel estiver aberto.':'');});
+chPedeTela();
 window.__bigAplicar=function(t,d){
   if(t==='site'){if(sujo)return;if(!d||!d.cardapio)return;S=d;}
   else if(t==='pdv'){if(!d||!d.mesas||!d.caixa)return;if(!d.cancelados)d.cancelados=[];P=d;}

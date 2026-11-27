@@ -239,7 +239,7 @@ function abrir(faltando){
   if(iniciou)return;iniciou=true;tiraCortina();
   window.__bigApp();
   if(ehDono())(faltando||[]).forEach(function(t){ultimo[t]=null;if(window.__bigSalvar)window.__bigSalvar(t==='geral'||t==='caixa'?'pdv':t);});
-  if(usuario){ouvir();envia();importaDias();if(window.__bigEquipe&&!ehDono()&&nivel('caixa')===2)window.__bigEquipe({nome:acesso.nome,papel:'caixa'});}
+  if(usuario){ouvir();chIniciar();envia();importaDias();if(window.__bigEquipe&&!ehDono()&&nivel('caixa')===2)window.__bigEquipe({nome:acesso.nome,papel:'caixa'});}
 }
 function comecar(u,offline){
   filaDoLogin(u.id);usuario=u;LS.set(K.entrou,'1');
@@ -623,6 +623,43 @@ function erro(err){var c=String(err&&(err.code||'')),m=String(err&&(err.message|
   if(/user_banned/i.test(c+m))return 'Este acesso foi desativado.';
   return 'Erro: '+(m||c);}
 
+
+/* ---------- chamados das mesas (QR Code): cliente chama o garçom ou pede a conta ----------
+   Canal separado do "painel": se a tabela ainda não existir no banco, o resto continua funcionando. */
+var chs={},chCanal=null,chOk=false,chTimer=null;
+function podeCh(){return nivel('mesas')>=1||nivel('caixa')>=1;}
+function chLista(){var lim=Date.now()-3*3600e3;
+  return Object.keys(chs).map(function(k){return chs[k];}).filter(function(c){return !c.atendido_em&&Date.parse(c.em)>lim;})
+    .sort(function(a,b){return Date.parse(a.em)-Date.parse(b.em);});}
+function chAvisa(novos){if(window.__bigChamados)try{window.__bigChamados(chLista(),novos||[]);}catch(e){if(window.console)console.warn('[chamados]',e);}}
+function chLimpa(c){if(!c||c.id==null||!/^[\w-]{1,20}$/.test(String(c.mesa||''))||(c.tipo!=='garcom'&&c.tipo!=='conta'))return null;
+  return {id:String(c.id),mesa:String(c.mesa),tipo:c.tipo,em:String(c.em||''),atendido_em:c.atendido_em||null,atendido_por:c.atendido_por||''};}
+function chBusca(primeira){
+  return sb.rpc('chamados_pendentes').then(function(r){if(r.error)throw r.error;
+    var vistos={},novos=[];
+    (r.data||[]).forEach(function(x){var c=chLimpa(x);if(!c)return;vistos[c.id]=1;
+      if(!chs[c.id]&&!primeira)novos.push(c);chs[c.id]=c;});
+    Object.keys(chs).forEach(function(k){if(!vistos[k])delete chs[k];});
+    chOk=true;chAvisa(novos);
+  }).catch(function(e){if(window.console)console.warn('[chamados]',e&&e.message||e);});}
+function chIniciar(){if(chCanal||!usuario||!podeCh())return;
+  chBusca(true);
+  chCanal=sb.channel('chamados');
+  chCanal.on('postgres_changes',{event:'*',schema:'public',table:'chamados'},function(ev){
+    var c=chLimpa(ev.eventType==='DELETE'?ev.old:ev.new);if(!c)return;
+    var novo=ev.eventType==='INSERT'&&!chs[c.id];
+    if(ev.eventType==='DELETE')delete chs[c.id];else chs[c.id]=c;
+    chAvisa(novo&&!c.atendido_em?[c]:[]);});
+  var primeira=true;
+  chCanal.subscribe(function(st){if(st==='SUBSCRIBED'){if(!primeira)chBusca(false);primeira=false;}});
+  /* reserva: o celular pode derrubar a conexão em segundo plano; confere a cada 20 s e quando a tela volta */
+  chTimer=setInterval(function(){if(!document.hidden)chBusca(false);},20000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)chBusca(false);});
+}
+function chAtender(id){var c=chs[id];if(c){c.atendido_em=new Date().toISOString();chAvisa([]);}
+  return sb.rpc('atender_chamado',{cid:+id}).then(function(r){if(r.error)throw r.error;},function(e){throw e;})
+    .catch(function(e){if(c){c.atendido_em=null;chAvisa([]);}throw e;});}
+
 window.BIG_SYNC={
   mudou:mudou,arquivarDia:arquivarDia,cancelou:cancelou,erro:erro,
   usuario:function(){return usuario;},
@@ -630,6 +667,7 @@ window.BIG_SYNC={
   /* o perfil vem do login: sem tela de "Quem é você?" (dono entra como dono, o resto pelas permissões) */
   perfilFixo:function(){return acesso?{tipo:ehDono()?'dono':'eq',nome:acesso.nome}:null;},
   perfilEq:perfilEq,nivel:nivel,
+  chamados:{lista:chLista,atender:chAtender,ativo:function(){return chOk;},busca:function(){return chBusca(false);}},
   pendentes:function(){return Object.keys(fila).length;},
   acessos:acessos,
   entrar:function(email,senha){return sb.auth.signInWithPassword({email:email,password:senha}).then(function(r){if(r.error)throw r.error;LS.set(K_EMAIL,email);LS.set(K_USO,String(Date.now()));return r.data;});},
@@ -637,6 +675,6 @@ window.BIG_SYNC={
   esqueci:function(email){return sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}).then(function(r){if(r.error)throw r.error;});},
   sair:function(){
     if(Object.keys(fila).length){envia();return Promise.reject(new Error('pendente'));}
-    if(canal)sb.removeChannel(canal);usuario=null;limpaLocal();return sb.auth.signOut();}
+    if(canal)sb.removeChannel(canal);if(chCanal)sb.removeChannel(chCanal);clearInterval(chTimer);usuario=null;limpaLocal();return sb.auth.signOut();}
 };
 })();
