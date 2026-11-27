@@ -205,8 +205,16 @@ function arquivarDia(dia){if(!usuario||!pode('dias'))return;
 /* dono: traz pro financeiro os dias que o caixa fechou (o caixa não lê nem grava o financeiro) */
 var importando=false;
 function importaDias(){if(!usuario||!pode('fin')||importando||!window.__bigImportarDias)return;importando=true;
-  sb.from('dias_fechados').select('id,dados').then(function(r){importando=false;if(r.error||!r.data)return;
-    window.__bigImportarDias(r.data.map(function(l){return {id:l.id,dados:limpa(l.dados)};}));},function(){importando=false;});}
+  /* primeiro só a lista de dias; depois baixa só os que ainda não entraram (com os meses a lista toda fica pesada) */
+  var feitos=window.__bigDiasFeitos?window.__bigDiasFeitos():null,fim=function(){importando=false;};
+  var traz=function(ids){var q=sb.from('dias_fechados').select('id,dados');if(ids)q=q.in('id',ids);
+    return q.then(function(r){fim();if(r.error||!r.data)return;
+      window.__bigImportarDias(r.data.map(function(l){return {id:l.id,dados:limpa(l.dados)};}));},fim);};
+  try{if(!feitos)throw 0;var q0=sb.from('dias_fechados').select('id');if(typeof q0.in!=='function')throw 0;
+    q0.then(function(r){if(r.error||!r.data){fim();return;}
+      var faltam=r.data.map(function(l){return l.id;}).filter(function(id){return feitos.indexOf(id)<0;});
+      if(!faltam.length){fim();return;}traz(faltam.slice(0,60));},fim);
+  }catch(e){traz(null);}}
 
 function cancelou(c){if(!usuario||!pode('mesas'))return;var id='c-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);
   enfileira('canc:'+id,{t:'cancelamentos',id:id,data:c.data,dados:c});}
@@ -251,11 +259,11 @@ function buscaTudo(){
   });
 }
 var atualizando=null;
-function atualizaTudo(){if(!iniciou||!usuario||atualizando)return;
+function atualizaTudo(leve){if(!iniciou||!usuario||atualizando)return;
   atualizando=buscaTudo().then(function(){
     if(ultimo.site)aplicar('site',JSON.parse(ultimo.site));
     if(ultimo.fin&&leFin())aplicar('fin',JSON.parse(ultimo.fin));
-    aplicaPDV();importaDias();}).catch(function(e){if(window.console)console.warn('[big-sync]',e);}).then(function(){atualizando=null;});}
+    aplicaPDV();if(leve!==true)importaDias();}).catch(function(e){if(window.console)console.warn('[big-sync]',e);}).then(function(){atualizando=null;});}
 var canal=null;
 function ouvir(){if(ouvindo)return;ouvindo=true;var primeira=true;
   canal=sb.channel('painel');
@@ -267,7 +275,11 @@ function ouvir(){if(ouvindo)return;ouvindo=true;var primeira=true;
       else if(t==='fin')aplicar('fin',JSON.parse(ultimo.fin));
       else aplicaPDV();});});
   canal.subscribe(function(st){
-    if(st==='SUBSCRIBED'){if(!primeira)atualizaTudo();primeira=false;}});
+    if(st==='SUBSCRIBED'){if(!primeira)atualizaTudo();primeira=false;}
+    else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'||st==='CLOSED')setTimeout(atualizaTudo,3000);});
+  /* o tempo real às vezes cai sem avisar (Wi-Fi que pisca, computador que fica horas ligado): confere o banco a cada 1 minuto
+     pra nenhuma comanda ficar sem aparecer nem sem imprimir */
+  setInterval(function(){if(navigator.onLine!==false)atualizaTudo(true);},60e3);
 }
 
 /* ---------- abrir o painel ---------- */
@@ -761,6 +773,6 @@ window.BIG_SYNC={
   esqueci:function(email){return sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname}).then(function(r){if(r.error)throw r.error;});},
   sair:function(){
     if(Object.keys(fila).length){envia();return Promise.reject(new Error('pendente'));}
-    if(canal)sb.removeChannel(canal);if(chCanal)sb.removeChannel(chCanal);clearInterval(chTimer);usuario=null;limpaLocal();return sb.auth.signOut();}
+    if(canal)sb.removeChannel(canal);if(chCanal)sb.removeChannel(chCanal);clearInterval(chTimer);usuario=null;limpaLocal();return sb.auth.signOut({scope:'local'});} /* só este aparelho: o computador da impressora e os outros aparelhos continuam entrados ("sair de todos" é outro botão) */
 };
 })();

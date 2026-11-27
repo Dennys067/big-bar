@@ -1089,7 +1089,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div id="qr-imprimir" aria-hidden="true"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=3f7638da"></script>
+<script src="big-sync.js?v=b049e4ee"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1998,8 +1998,9 @@ var MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto
 function Dd(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2],12);}
 function dstr(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
 function addD(s,n){var d=Dd(s);d.setDate(d.getDate()+n);return dstr(d);}
-function dm(s){var p=s.split('-');return p[2]+'/'+p[1];}
-function dmy(s){var p=s.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+/* datas vindas do banco: só números passam (evita código escondido numa data) */
+function dm(s){var p=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s==null?'':s));return p?p[3]+'/'+p[2]:esc(s);}
+function dmy(s){var p=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s==null?'':s));return p?p[3]+'/'+p[2]+'/'+p[1]:esc(s);}
 function mesAdd(m,n){var p=m.split('-');var d=new Date(+p[0],+p[1]-1+n,1,12);return d.getFullYear()+'-'+pad(d.getMonth()+1);}
 function mesNome(m){var p=m.split('-');return MESES[+p[1]-1]+' '+p[0];}
 function diasMes(m){var p=m.split('-');return new Date(+p[0],+p[1],0).getDate();}
@@ -2538,6 +2539,7 @@ function confereContas(){var agora={};Object.keys(P.mesas).forEach(function(k){v
   contaVista=agora;}
 setInterval(confereContas,1500);confereContas();
 /* dono: dias fechados pelo caixa entram no financeiro */
+window.__bigDiasFeitos=function(){return (F.importados||[]).slice();};
 window.__bigImportarDias=function(lista){var feito=F.importados||(F.importados=[]),mudou=false;
   lista.forEach(function(x){if(feito.indexOf(x.id)>=0)return;var c=x.dados&&x.dados.caixa;feito.push(x.id);mudou=true;
     if(c&&((c.vendas||[]).length||(c.movs||[]).length))F.dias.push(vendasParaDia(c.vendas||[],c.movs||[],c.data||hojeStr()));});
