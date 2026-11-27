@@ -319,10 +319,11 @@ function confereSenha(f){var s1=f.querySelector('#big-s1').value,s2=f.querySelec
 /* convite: a pessoa completa o cadastro (nome, nascimento, celular) e cria a senha. Entra sem acesso até o dono liberar. */
 function telaCadastro(u,comSenha,nomeAtual){
   tiraCortina();
-  var c=caixaCentral('Complete seu cadastro',(comSenha?'Bem-vindo ao painel do Big! ':'')+'Preencha seus dados'+(comSenha?' e crie sua senha':'')+(u.email?' ('+u.email+')':'')+'. Depois o dono libera o que você pode ver.');
+  var c=caixaCentral('Complete seu cadastro',(comSenha?'Bem-vindo ao painel do Big! ':'')+'Preencha seus dados'+(comSenha?' e crie sua senha':'')+'. Depois o dono libera o que você pode ver.');
   var f=document.createElement('form');f.noValidate=true;
   var hoje=new Date(),max=(hoje.getFullYear()-14)+'-'+('0'+(hoje.getMonth()+1)).slice(-2)+'-'+('0'+hoje.getDate()).slice(-2);
   f.innerHTML='<input type="email" autocomplete="username" hidden>'+
+    '<label style="'+ROT+'">Seu e-mail (o mesmo que recebeu o convite)<input id="big-mail" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="120" style="'+CAMPO+'"></label>'+
     '<label style="'+ROT+'">Nome completo<input id="big-nome" type="text" autocomplete="name" maxlength="60" style="'+CAMPO+'"></label>'+
     '<label style="'+ROT+'">Data de nascimento<input id="big-nasc" type="date" min="1900-01-01" max="'+max+'" autocomplete="bday" style="'+CAMPO+'"></label>'+
     '<label style="'+ROT+'">Celular com DDD<input id="big-cel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(67) 99999-9999" maxlength="20" style="'+CAMPO+'"></label>'+
@@ -337,6 +338,9 @@ function telaCadastro(u,comSenha,nomeAtual){
   cel.addEventListener('input',function(){var d=cel.value.replace(/\D/g,'').slice(0,11);cel.value=d.length>6?'('+d.slice(0,2)+') '+d.slice(2,d.length-4)+'-'+d.slice(-4):d.length>2?'('+d.slice(0,2)+') '+d.slice(2):d;});
   f.addEventListener('submit',function(e){e.preventDefault();
     var nome=f.querySelector('#big-nome').value.trim(),nasc=f.querySelector('#big-nasc').value,cl=cel.value.replace(/\D/g,''),er=f.querySelector('#big-s-erro'),bt=f.querySelector('button[type=submit]');
+    var ml=f.querySelector('#big-mail').value.trim().toLowerCase();
+    if(!ml){er.textContent='Escreva seu e-mail.';f.querySelector('#big-mail').focus();return;}
+    if(u.email&&ml!==String(u.email).toLowerCase()){er.textContent='Esse e-mail não é o do convite. Use o e-mail em que você recebeu o convite.';f.querySelector('#big-mail').focus();return;}
     if(nome.length<2){er.textContent='Escreva seu nome.';f.querySelector('#big-nome').focus();return;}
     if(!/^\d{4}-\d{2}-\d{2}$/.test(nasc)||nasc>max||nasc<'1900-01-01'){er.textContent='Confira a data de nascimento.';f.querySelector('#big-nasc').focus();return;}
     if(cl.length<10||cl.length>11){er.textContent='Celular com DDD, só números. Ex.: (67) 99999-9999.';cel.focus();return;}
@@ -348,7 +352,7 @@ function telaCadastro(u,comSenha,nomeAtual){
       .then(function(r){if(r&&r.error)throw r.error;location.hash='';location.reload();})
       .catch(function(err){bt.disabled=false;bt.textContent=comSenha?'Salvar e criar senha':'Salvar cadastro';er.textContent=erro(err);});
   });
-  setTimeout(function(){var i=f.querySelector('#big-nome');if(i)(i.value?f.querySelector('#big-nasc'):i).focus();},50);
+  setTimeout(function(){var i=f.querySelector('#big-mail');if(i)i.focus();},50);
 }
 /* cadastro feito, mas o dono ainda não liberou nada */
 function telaAguardando(u){
