@@ -138,7 +138,7 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden&&ini
 
 /* ---------- gravar ---------- */
 function partesPDV(P){
-  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[],vendidos:P.vendidos||{}},caixa:P.caixa||{},mesas:P.mesas||{}};}
+  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[],vendidos:P.vendidos||{},qtdMesas:P.qtdMesas||20},caixa:P.caixa||{},mesas:P.mesas||{}};}
 function mudou(tipo){
   if(!usuario||!iniciou)return;
   if(tipo==='site'||tipo==='fin'){if(!pode(tipo))return;var d=ler(K[tipo]);if(!d)return;if(tipo==='site')d=limpaSite(d);var c=canon(d);
@@ -174,7 +174,7 @@ function pendente(chave){return !!fila[chave];}
 function caixaVazio(){var d=new Date(),p=function(n){return (n<10?'0':'')+n;};return {data:d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};}
 function montaPDV(){if(ultimo.caixa==null&&ultimo.geral==null&&!Object.keys(ultimo.mesas).length)return null;
   var g={};try{g=JSON.parse(ultimo.geral||'{}');}catch(e){}
-  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[],vendidos:g.vendidos||{}};
+  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[],vendidos:g.vendidos||{},qtdMesas:Math.min(99,Math.max(1,Math.round(+g.qtdMesas)||20))};
   try{P.caixa=ultimo.caixa?JSON.parse(ultimo.caixa):caixaVazio();}catch(e){P.caixa=caixaVazio();}
   Object.keys(ultimo.mesas).sort().forEach(function(k){try{P.mesas[k]=JSON.parse(ultimo.mesas[k]);}catch(e){}});
   return P.caixa?P:null;}
@@ -667,6 +667,10 @@ window.BIG_SYNC={
   /* o perfil vem do login: sem tela de "Quem é você?" (dono entra como dono, o resto pelas permissões) */
   perfilFixo:function(){return acesso?{tipo:ehDono()?'dono':'eq',nome:acesso.nome}:null;},
   perfilEq:perfilEq,nivel:nivel,
+  /* dono: códigos dos QR Codes das mesas */
+  qr:{lista:function(){return sb.rpc('qr_lista').then(function(r){if(r.error)throw r.error;return (r.data||[]).filter(function(x){return /^[\w-]{1,20}$/.test(String(x.mesa))&&/^[\w-]{4,60}$/.test(String(x.token));});});},
+      garantir:function(n){return sb.rpc('qr_garantir',{n:n}).then(function(r){if(r.error)throw r.error;if(r.data!=='ok')throw new Error(r.data);});},
+      trocar:function(m){return sb.rpc('qr_trocar',{m:m}).then(function(r){if(r.error)throw r.error;if(r.data!=='ok')throw new Error(r.data);});}},
   chamados:{lista:chLista,atender:chAtender,ativo:function(){return chOk;},busca:function(){return chBusca(false);}},
   pendentes:function(){return Object.keys(fila).length;},
   acessos:acessos,

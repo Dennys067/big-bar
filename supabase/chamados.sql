@@ -136,4 +136,42 @@ end $$;
 drop trigger if exists limpa on public.chamados;
 create trigger limpa after insert on public.chamados for each statement execute function public.chamados_limpa();
 
+-- ---------- dono: ver, criar e trocar os códigos pelo painel (QR Codes das mesas) ----------
+create or replace function public.qr_lista() returns table (mesa text, token text, ativo boolean)
+language sql stable security definer set search_path = public as $$
+  select q.mesa, q.token, q.ativo from public.mesa_qr q
+   where public.meu_papel() = 'dono'
+   order by (case when q.mesa ~ '^\d+$' then q.mesa::int else 9999 end), q.mesa
+$$;
+revoke all on function public.qr_lista() from public;
+grant execute on function public.qr_lista() to authenticated;
+
+-- deixa as mesas 1..n com código (cria o que falta) e desliga as acima de n
+create or replace function public.qr_garantir(n int) returns text
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  if public.meu_papel() is distinct from 'dono' then return 'negado'; end if;
+  if n < 1 or n > 99 then return 'n'; end if;
+  insert into public.mesa_qr (mesa, token)
+    select g::text, substr(replace(gen_random_uuid()::text, '-', ''), 1, 12) from generate_series(1, n) g
+  on conflict (mesa) do update set ativo = true;
+  update public.mesa_qr set ativo = false where mesa ~ '^\d+$' and mesa::int > n;
+  return 'ok';
+end $$;
+revoke all on function public.qr_garantir(int) from public;
+grant execute on function public.qr_garantir(int) to authenticated;
+
+-- código novo para uma mesa (o QR antigo dela para de funcionar)
+create or replace function public.qr_trocar(m text) returns text
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  if public.meu_papel() is distinct from 'dono' then return 'negado'; end if;
+  if m !~ '^[\w-]{1,20}$' then return 'mesa'; end if;
+  insert into public.mesa_qr (mesa, token) values (m, substr(replace(gen_random_uuid()::text, '-', ''), 1, 12))
+  on conflict (mesa) do update set token = excluded.token, ativo = true, criado_em = now();
+  return 'ok';
+end $$;
+revoke all on function public.qr_trocar(text) from public;
+grant execute on function public.qr_trocar(text) to authenticated;
+
 select 'ok' as pronto;
