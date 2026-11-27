@@ -726,11 +726,19 @@ function chLista(){var lim=Date.now()-3*3600e3;
 function chAvisa(novos){if(window.__bigChamados)try{window.__bigChamados(chLista(),novos||[]);}catch(e){if(window.console)console.warn('[chamados]',e);}}
 function chLimpa(c){if(!c||c.id==null||!/^[\w-]{1,20}$/.test(String(c.mesa||''))||(c.tipo!=='garcom'&&c.tipo!=='conta'))return null;
   return {id:String(c.id),mesa:String(c.mesa),tipo:c.tipo,em:String(c.em||''),atendido_em:c.atendido_em||null,atendido_por:c.atendido_por||''};}
+/* chamados que este aparelho já avisou (fica guardado: recarregar a página ou voltar pra aba não toca de novo) */
+var K_CHV='painelBig.ch.vistos';
+function chVistos(){var v=ler(K_CHV);return v&&typeof v==='object'?v:{};}
+function chJaVisto(id){return !!chVistos()[id];}
+function chMarca(ids){if(!ids.length)return;var v=chVistos(),lim=Date.now()-12*3600e3;
+  Object.keys(v).forEach(function(k){if(!(v[k]>lim))delete v[k];});ids.forEach(function(id){v[id]=Date.now();});LS.set(K_CHV,JSON.stringify(v));}
+function chRecente(c){var t=Date.parse(c.em);return !(t<Date.now()-15*60e3);}
 function chBusca(primeira){
   return sb.rpc('chamados_pendentes').then(function(r){if(r.error)throw r.error;
-    var vistos={},novos=[];
-    (r.data||[]).forEach(function(x){var c=chLimpa(x);if(!c)return;vistos[c.id]=1;
-      if(!chs[c.id]&&!primeira)novos.push(c);chs[c.id]=c;});
+    var vistos={},novos=[],ids=[];
+    (r.data||[]).forEach(function(x){var c=chLimpa(x);if(!c)return;vistos[c.id]=1;ids.push(c.id);
+      if(!chs[c.id]&&!primeira&&!chJaVisto(c.id)&&chRecente(c))novos.push(c);chs[c.id]=c;});
+    chMarca(ids);
     Object.keys(chs).forEach(function(k){if(!vistos[k])delete chs[k];});
     chOk=true;chAvisa(novos);
   }).catch(function(e){if(window.console)console.warn('[chamados]',e&&e.message||e);});}
@@ -739,7 +747,7 @@ function chIniciar(){if(chCanal||!usuario||!podeCh())return;
   chCanal=sb.channel('chamados');
   chCanal.on('postgres_changes',{event:'*',schema:'public',table:'chamados'},function(ev){
     var c=chLimpa(ev.eventType==='DELETE'?ev.old:ev.new);if(!c)return;
-    var novo=ev.eventType==='INSERT'&&!chs[c.id];
+    var novo=ev.eventType==='INSERT'&&!chs[c.id]&&!chJaVisto(c.id);chMarca([c.id]);
     if(ev.eventType==='DELETE')delete chs[c.id];else chs[c.id]=c;
     chAvisa(novo&&!c.atendido_em?[c]:[]);});
   var primeira=true;
