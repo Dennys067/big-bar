@@ -1083,7 +1083,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div id="qr-imprimir" aria-hidden="true"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=4e495c81"></script>
+<script src="big-sync.js?v=ca302a1b"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -2334,6 +2334,8 @@ function qrCarrega(){if(QR.carregando)return;
   }).catch(function(e){QR.erro=/qr_lista|function|404|PGRST/i.test(String(e&&(e.message||e.code)||e))?'Falta ligar os QR Codes no banco: rode o arquivo rodar-no-supabase.sql no SQL Editor do Supabase.':'Sem internet agora. Tente de novo.';})
   .then(function(){QR.carregando=false;renderCfgMesas();});}
 function renderCfgMesas(){
+  var pode=!window.BIG_SYNC||!BIG_SYNC.nivel||BIG_SYNC.nivel('qrmesas')===2;
+  document.querySelector('#qr-qtd-form button').hidden=!pode;document.getElementById('qr-qtd').disabled=!pode;
   var inp=document.getElementById('qr-qtd');if(document.activeElement!==inp)inp.value=qtdMesas();
   var g=document.getElementById('qr-grade'),av=document.getElementById('qr-aviso');
   document.querySelector('#t-cfgmesas .qr-bts').hidden=!!QR.erro||!QR.lista;
@@ -2343,7 +2345,7 @@ function renderCfgMesas(){
   g.innerHTML=ls.map(function(t){var nm=mesaNome(t.mesa);
     return '<li><div class="qr-cab"><span>'+esc(nm)+'</span><label><input type="checkbox" data-qr-marca="'+esc(t.mesa)+'"'+(QR.marcadas[t.mesa]?' checked':'')+'>Imprimir</label></div>'+
       '<div class="qr-img" role="img" aria-label="QR Code da '+esc(nm)+'">'+qrSvg(qrLink(t))+'</div>'+
-      '<div class="qr-acoes"><a href="'+esc(qrLink(t))+'" target="_blank" rel="noopener">Abrir</a><button type="button" data-qr-troca="'+esc(t.mesa)+'">Trocar código</button></div></li>';}).join('');
+      '<div class="qr-acoes"><a href="'+esc(qrLink(t))+'" target="_blank" rel="noopener">Abrir</a>'+(pode?'<button type="button" data-qr-troca="'+esc(t.mesa)+'">Trocar código</button>':'')+'</div></li>';}).join('');
   document.getElementById('qr-marcar').textContent=ls.length&&ls.every(function(t){return QR.marcadas[t.mesa];})?'Desmarcar todas':'Marcar todas';
 }
 document.getElementById('qr-qtd-form').addEventListener('submit',function(e){e.preventDefault();

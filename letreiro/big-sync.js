@@ -50,10 +50,10 @@ var usuario=null,acesso=null,iniciou=false,ouvindo=false;
 var ultimo={site:null,fin:null,geral:null,caixa:null,mesas:{}}; /* versão mais nova que este aparelho conhece (banco + fila) */
 /* permissões por módulo: 0 = nenhum, 1 = só ver, 2 = ver e alterar. O dono vale 2 em tudo.
    O banco confere tudo de novo (RLS e salvar_site); aqui é só pra tela não oferecer o que não pode. */
-var MODS=['mesas','caixa','cardapio','horarios','shows','infos','equipe','financeiro'];
-var MOD_NOME={mesas:'Mesas',caixa:'Caixa e fechamento',cardapio:'Cardápio',horarios:'Horários',shows:'Shows',infos:'Infos do site',equipe:'Equipe',financeiro:'Financeiro'};
-var MOD_DICA={mesas:'Abrir mesa e lançar pedidos',caixa:'Receber, sangria e fechar o dia',cardapio:'Itens, preços e esgotados',horarios:'Dias e horas que abre',shows:'Agenda de shows',infos:'Endereço, aviso e placa aberto/fechado',equipe:'Nomes de garçons e caixas',financeiro:'Contas, estoque, relatórios e custos'};
-var PRESETS={nada:{},garcom:{mesas:2,cardapio:1},caixa:{mesas:2,caixa:2,cardapio:1},tudo:{mesas:2,caixa:2,cardapio:2,horarios:2,shows:2,infos:2,equipe:2,financeiro:2}};
+var MODS=['mesas','qrmesas','caixa','cardapio','horarios','shows','infos','equipe','financeiro'];
+var MOD_NOME={mesas:'Comandas',qrmesas:'Mesas',caixa:'Caixa e fechamento',cardapio:'Cardápio',horarios:'Horários',shows:'Shows',infos:'Infos do site',equipe:'Equipe',financeiro:'Financeiro'};
+var MOD_DICA={mesas:'Abrir comanda e lançar pedidos',qrmesas:'Quantas mesas e QR Codes pra imprimir',caixa:'Receber, sangria e fechar o dia',cardapio:'Itens, preços e esgotados',horarios:'Dias e horas que abre',shows:'Agenda de shows',infos:'Endereço, aviso e placa aberto/fechado',equipe:'Nomes de garçons e caixas',financeiro:'Contas, estoque, relatórios e custos'};
+var PRESETS={nada:{},garcom:{mesas:2,cardapio:1},caixa:{mesas:2,caixa:2,cardapio:1},tudo:{mesas:2,qrmesas:2,caixa:2,cardapio:2,horarios:2,shows:2,infos:2,equipe:2,financeiro:2}};
 function nivelDe(ac,m){if(!ac)return 0;if(ac.papel==='dono')return 2;var v=Math.round(+((ac.perms||{})[m])||0);return v<0?0:v>2?2:v;}
 function nivel(m){return nivelDe(acesso,m);}
 function temAlgum(ac){return !!ac&&(ac.papel==='dono'||MODS.some(function(m){return nivelDe(ac,m)>0;}));}
@@ -545,6 +545,7 @@ function perfilEq(){var ab=[];
   if(nivel('mesas')>=1||nivel('caixa')>=1)ab.push('mesas');
   ['caixa','cardapio','horarios','shows','infos'].forEach(function(m){if(nivel(m)>=1)ab.push(m);});
   if(!gerente&&nivel('infos')>=1)ab.push('inicio');
+  if(nivel('qrmesas')>=1)ab.push('cfgmesas');
   ['equipe','financeiro'].forEach(function(m){if(nivel(m)>=1)ab.push(m);});
   var ex=[];if(ab.indexOf('mesas')>=0)ex.push('mesa');if(nivel('caixa')>=1)ex.push('conta','fechamento');
   return {rot:'Equipe',abas:ab,extra:ex};}
