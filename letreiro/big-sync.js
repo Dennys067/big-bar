@@ -262,7 +262,7 @@ function iniciar(u){
   sb.from('equipe_acesso').select('papel,nome,ativo,perms,cadastro_ok').eq('user_id',u.id).maybeSingle().then(function(r){
     if(r.error)throw r.error;
     if(!r.data||!r.data.ativo){LS.del(K.acesso);semAcesso('Este e-mail ainda não tem acesso ao painel. Fale com o dono do Big.');return;}
-    if(r.data.cadastro_ok===false){LS.del(K.acesso);telaCadastro(u,false,r.data.nome);return;}
+    if(r.data.cadastro_ok===false){LS.del(K.acesso);porCodigo(u,r.data.nome);return;}
     acesso={papel:r.data.papel,nome:r.data.nome,perms:r.data.perms||{}};
     if(!temAlgum(acesso)){LS.del(K.acesso);telaAguardando(u);return;}
     LS.set(K.acesso,JSON.stringify({uid:u.id,papel:acesso.papel,nome:acesso.nome,perms:acesso.perms}));
@@ -316,6 +316,38 @@ function ligaRegras(f){var s1=f.querySelector('#big-s1');if(!s1)return;
 function confereSenha(f){var s1=f.querySelector('#big-s1').value,s2=f.querySelector('#big-s2').value;
   if(!senhaBoa(s1))return 'A senha precisa de 8 caracteres, com letra maiúscula, letra minúscula e número.';
   if(s1!==s2)return 'As duas senhas não são iguais.';return '';}
+/* confirmar o e-mail: código de 6 números mandado pelo Supabase (o banco confere que a sessão veio do código) */
+function amrDe(s){try{var p=s.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return (JSON.parse(decodeURIComponent(escape(atob(p)))).amr||[]).map(function(x){return x.method;});}catch(e){return [];}}
+function porCodigo(u,nomeAtual){
+  sb.auth.getSession().then(function(r){var s=r&&r.data&&r.data.session;
+    if(s&&amrDe(s).indexOf('otp')>=0)telaCadastro(u,true,nomeAtual);else telaCodigo(u,nomeAtual);},function(){telaCodigo(u,nomeAtual);});}
+function telaCodigo(u,nomeAtual){
+  tiraCortina();
+  var c=caixaCentral('Confirme seu e-mail','Pra começar, vamos mandar um código para '+(u.email||'o seu e-mail')+'. Abra o e-mail e digite o código aqui.');
+  var f=document.createElement('form');f.noValidate=true;
+  f.innerHTML='<button type="button" id="big-envia" style="'+BTN+'">Enviar código</button>'+
+    '<div id="big-cod-box" hidden><label style="'+ROT+';margin-top:14px">Código do e-mail<input id="big-cod" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456" style="'+CAMPO+';letter-spacing:.3em;font-size:22px;text-align:center"></label>'+
+    '<button type="submit" style="'+BTN+'">Confirmar</button>'+
+    '<p style="margin:10px 0 0;font-size:14px;opacity:.85">Não chegou? Olhe o spam. <button type="button" id="big-reenvia" disabled style="background:none;border:0;color:#F5A51B;text-decoration:underline;font:inherit;cursor:pointer;padding:0">Mandar de novo</button></p></div>'+
+    '<p id="big-s-erro" role="alert" style="color:#FFB4A9;margin:8px 0 0;min-height:1.4em"></p>';
+  c.appendChild(f);
+  var er=f.querySelector('#big-s-erro'),bEnv=f.querySelector('#big-envia'),bRe=f.querySelector('#big-reenvia'),box=f.querySelector('#big-cod-box'),cod=f.querySelector('#big-cod');
+  function envia(b){b.disabled=true;er.textContent='';var t=b.textContent;b.textContent='Enviando…';
+    sb.auth.signInWithOtp({email:u.email,options:{shouldCreateUser:false}}).then(function(r){if(r.error)throw r.error;
+      bEnv.hidden=true;box.hidden=false;cod.focus();er.style.color='#9BE29B';er.textContent='Código enviado para '+u.email+'.';
+      b.textContent=t;setTimeout(function(){bRe.disabled=false;},60e3);
+    }).catch(function(err){b.disabled=false;b.textContent=t;er.style.color='#FFB4A9';
+      er.textContent=/only request this after|rate/i.test(String(err&&err.message))?'Espere um minuto e tente de novo.':erro(err);});}
+  bEnv.addEventListener('click',function(){envia(bEnv);});bRe.addEventListener('click',function(){envia(bRe);});
+  cod.addEventListener('input',function(){cod.value=cod.value.replace(/\D/g,'');});
+  f.addEventListener('submit',function(e){e.preventDefault();var t=cod.value.replace(/\D/g,''),bt=f.querySelector('button[type=submit]');
+    if(t.length<6){er.style.color='#FFB4A9';er.textContent='Digite o código que chegou no e-mail.';cod.focus();return;}
+    bt.disabled=true;bt.textContent='Conferindo…';
+    sb.auth.verifyOtp({email:u.email,token:t,type:'email'}).then(function(r){if(r.error)throw r.error;
+      var fundo=c.parentNode;if(fundo&&fundo.parentNode)fundo.parentNode.removeChild(fundo);telaCadastro(u,true,nomeAtual);
+    }).catch(function(err){bt.disabled=false;bt.textContent='Confirmar';er.style.color='#FFB4A9';
+      er.textContent=/expired|invalid|otp/i.test(String(err&&(err.code||'')+(err.message||'')))?'Código errado ou vencido. Confira ou peça outro.':erro(err);});});
+}
 /* convite: a pessoa completa o cadastro (nome, nascimento, celular) e cria a senha. Entra sem acesso até o dono liberar. */
 function telaCadastro(u,comSenha,nomeAtual){
   tiraCortina();
@@ -602,7 +634,7 @@ function inicio(){sb.auth.getSession().then(function(r){
   if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);LS.del(K_USO);abrir([]);esvazia();melhoraEntrar(); /* a fila fica: sobe no próximo login */
     if(linkErro)setTimeout(function(){caixaCentral('Link vencido','Esse link de acesso já foi usado ou venceu. Peça um novo ao dono do Big, ou toque em "Esqueci a senha" na tela de entrar.');},0);
     return;}
-  if(linkTipo==='invite'){telaCadastro(s.user,true);return;}
+  if(linkTipo==='invite'){porCodigo(s.user);return;}
   if(linkTipo==='recovery'){telaSenha(s.user);return;}
   if(parado()){sairPorParado();return;}
   if(!LS.get(K_USO))LS.set(K_USO,String(Date.now()));
