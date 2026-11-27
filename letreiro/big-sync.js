@@ -245,8 +245,16 @@ function abrir(faltando){
   if(iniciou)return;iniciou=true;tiraCortina();
   window.__bigApp();
   if(ehDono())(faltando||[]).forEach(function(t){ultimo[t]=null;if(window.__bigSalvar)window.__bigSalvar(t==='geral'||t==='caixa'?'pdv':t);});
-  if(usuario){ouvir();chIniciar();envia();importaDias();if(window.__bigEquipe&&!ehDono()&&nivel('caixa')===2)window.__bigEquipe({nome:acesso.nome,papel:'caixa'});}
+  if(usuario){ouvir();chIniciar();envia();importaDias();if(window.__bigEquipe&&!ehDono()&&nivel('caixa')===2)window.__bigEquipe({nome:acesso.nome,papel:'caixa'});sincEquipe();}
 }
+/* logins da equipe -> lista de garçons e caixas do painel (comandas, vendas por garçom, financeiro).
+   Só o dono lê todos os logins; ele mantém a lista em dia sempre que abre o painel ou muda permissões. */
+function fnDe(r){if(!r||r.papel==='dono'||!r.ativo||r.cadastro_ok===false)return '';
+  if(nivelDe(r,'caixa')===2)return 'caixa';if(nivelDe(r,'mesas')===2)return 'garcom';return '';}
+function equipeDosLogins(lista){if(!window.__bigEquipeSync||!ehDono())return;
+  window.__bigEquipeSync((lista||[]).map(function(r){return {uid:r.user_id,nome:String(r.nome||'').trim(),fn:fnDe(r)};}).filter(function(x){return x.fn&&x.nome.length>1&&!/@/.test(x.nome);}));}
+function sincEquipe(){if(!ehDono()||!window.__bigEquipeSync)return;
+  sb.from('equipe_acesso').select('user_id,nome,papel,perms,ativo,cadastro_ok').then(function(r){if(!r.error)equipeDosLogins(r.data);},function(){});}
 function comecar(u,offline){
   filaDoLogin(u.id);usuario=u;LS.set(K.entrou,'1');
   LS.set(K.perfil,JSON.stringify({tipo:ehDono()?'dono':'eq',nome:acesso.nome}));
@@ -491,7 +499,7 @@ function acessos(el){
     box.scrollIntoView({block:'nearest'});}
   function carregaLista(){var ul=el.querySelector('#acs-lista');
     return sb.from('equipe_acesso').select('user_id,email,nome,papel,ativo,perms,cadastro_ok,nascimento,celular,criado_em').order('criado_em').then(function(r){
-      if(r.error)throw r.error;lista=r.data||[];desenha();
+      if(r.error)throw r.error;lista=r.data||[];desenha();equipeDosLogins(lista);
     }).catch(function(err){ul.innerHTML='<li class="vazio-txt">Não deu pra carregar ('+esc(erro(err))+').</li>';});}
   el.__lista=function(){historicoUI(el);return carregaLista();};carregaLista();historicoUI(el);
 }

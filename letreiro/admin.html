@@ -1083,7 +1083,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div id="qr-imprimir" aria-hidden="true"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=b2410aa9"></script>
+<script src="big-sync.js?v=6c92ac70"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1898,7 +1898,7 @@ var eqFn='garcom';
 function renderEquipe(){if(window.BIG_SYNC)BIG_SYNC.acessos(document.getElementById('acessos'));
   document.getElementById('eq-lista').innerHTML=P.equipe.length?P.equipe.map(function(p){var nm=esc(p.nome);
     return '<li class="eq-it" data-p="'+p.id+'"><span class="n">'+nm+'</span><span class="fn'+(p.fn==='caixa'?' cx':'')+'">'+(p.fn==='caixa'?'Caixa':'Garçom')+'</span>'+
-      '<button class="acao apagar" type="button" data-acao="eq-apagar">Tirar<span class="vh"> '+nm+'</span></button>'+
+      (p.uid?'<span class="fn" title="Vem do login. Para tirar, mude as permissões em Acessos ao painel.">Login</span>':'<button class="acao apagar" type="button" data-acao="eq-apagar">Tirar<span class="vh"> '+nm+'</span></button>')+
       '<div class="certeza" hidden><p>Tirar '+nm+' da equipe? As vendas de hoje continuam no nome dele.</p><button class="btn perigo" type="button" data-acao="eq-apagar-sim">Sim, tirar</button><button class="btn claro" type="button" data-acao="eq-apagar-nao">Não</button></div></li>';
   }).join(''):'<li class="vazio-txt">Ninguém na equipe ainda.</li>';
   var vg={};garcons().forEach(function(p){vg[p.nome]={v:0,q:0,c:0,ab:0};});
@@ -2492,6 +2492,14 @@ window.__bigImportarDias=function(lista){var feito=F.importados||(F.importados=[
   if(mudou){gf();redesenhar();}};
 /* quem entra como caixa aparece na lista da equipe */
 window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac.nome;})){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.papel});gp();}};
+/* dono: quem tem login de garçom (Comandas) ou de caixa entra sozinho na lista da equipe, ligado ao login */
+window.__bigEquipeSync=function(lista){var mudou=false,low=function(x){return String(x||'').trim().toLowerCase();};
+  lista.forEach(function(ac){var p=P.equipe.filter(function(e){return e.uid===ac.uid;})[0]||P.equipe.filter(function(e){return !e.uid&&low(e.nome)===low(ac.nome);})[0];
+    if(!p){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.fn,uid:ac.uid});mudou=true;return;}
+    if(p.uid!==ac.uid){p.uid=ac.uid;mudou=true;}
+    if(p.fn!==ac.fn){p.fn=ac.fn;mudou=true;}
+    if(p.nome!==ac.nome){p.nome=ac.nome;mudou=true;}});
+  if(mudou){gp();var t=document.getElementById('t-equipe');if(t&&!t.hidden)renderEquipe();}};
 /* ===== impressão térmica por setor (QZ Tray + ESC/POS em bytes, mesmo esquema da Arena) =====
    Um computador com a impressora e o QZ Tray aberto vira a "estação de impressão":
    quando qualquer aparelho envia um pedido, ele imprime um papel para o BAR (bebidas)
