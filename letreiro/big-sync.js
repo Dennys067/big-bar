@@ -110,7 +110,9 @@ function envia(){
   });
 }
 function juntaCaixa(meu,banco){
-  if(!banco||!meu||banco.data!==meu.data)return meu;
+  if(!banco||!meu)return meu;
+  if(banco.data&&meu.data&&banco.data>meu.data)return banco; /* aparelho com caixa velho não volta o caixa do banco pra trás */
+  if(banco.data!==meu.data)return meu;
   var j=JSON.parse(JSON.stringify(meu)),ids={};(j.vendas||[]).forEach(function(v){ids[v.id]=1;});
   (banco.vendas||[]).forEach(function(v){if(!ids[v.id])j.vendas.push(v);});
   var ms={};(j.movs||[]).forEach(function(m){ms[canon(m)]=1;});(banco.movs||[]).forEach(function(m){if(!ms[canon(m)])j.movs.push(m);});
@@ -188,7 +190,8 @@ function recebe(tabela,linha,apagou){
     if(apagou){if(!(k in ultimo.mesas))return false;delete ultimo.mesas[k];return true;}
     var c=canon(linha.dados);if(ultimo.mesas[k]===c)return false;ultimo.mesas[k]=c;return true;}
   if((tabela==='site'||tabela==='site_painel')&&tabela!==tabSite())return false;
-  var t=CHAVE_T[tabela];if(!t||apagou||pendente(chaveFila(t)))return false;
+  var t=CHAVE_T[tabela];if(!t||pendente(chaveFila(t)))return false;
+  if(apagou){if(t!=='caixa'&&t!=='geral')return false;if(ultimo[t]==null)return false;ultimo[t]=null;return true;} /* caixa/geral apagados no banco: o aparelho também zera */
   var dd=t==='site'?limpaSite(linha.dados):limpa(linha.dados);var c2=canon(dd);if(ultimo[t]===c2)return false;ultimo[t]=c2;return true;}
 function buscaTudo(){
   var q=[sb.from(tabSite()).select('id,dados'),leFin()?sb.from('fin').select('id,dados'):Promise.resolve({data:[]}),
