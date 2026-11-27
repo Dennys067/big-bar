@@ -86,8 +86,13 @@ document.addEventListener('DOMContentLoaded',prende);prende();
 
 /* ---------- fila de envio (sobrevive a recarregar a página) ---------- */
 var fila=ler(K.fila)||{},enviando=false,tentativas=0,timer=null,seq=0;
-function salvaFila(){LS.set(K.fila,JSON.stringify(fila));mostraFaixa();}
-function enfileira(chave,op){op.n=Date.now()+'-'+(++seq);fila[chave]=op;if(usuario)LS.set(K.filaDe,usuario.id);salvaFila();envia();}
+function salvaFila(){LS.set(K.fila,JSON.stringify(fila));mostraFaixa();if(window.__bigFila)try{window.__bigFila();}catch(e){}}
+var emVoo=null; /* operação que está subindo agora */
+function enfileira(chave,op){op.n=Date.now()+'-'+(++seq);
+  /* comanda: guarda como a mesa estava antes da 1ª alteração ainda não enviada (pra juntar com o que outro aparelho lançou) */
+  if(op.t==='pdv_mesas'&&op.base!==undefined){var ant=fila[chave];
+    if(ant&&ant.base!==undefined)op.base=emVoo===ant?(ant.apagar?'':canon(ant.dados)):ant.base;}
+  fila[chave]=op;if(usuario)LS.set(K.filaDe,usuario.id);salvaFila();envia();}
 /* a fila é de quem lançou: se outra pessoa entrar neste aparelho, a fila fica guardada à parte e só sobe quando o dono dela entrar */
 function filaDoLogin(uid){var de=LS.get(K.filaDe),outro=ler(K.filaOutro);
   if(Object.keys(fila).length&&de&&de!==uid){LS.set(K.filaOutro,JSON.stringify({uid:de,fila:fila}));fila={};salvaFila();}
@@ -96,18 +101,20 @@ function filaDoLogin(uid){var de=LS.get(K.filaDe),outro=ler(K.filaOutro);
   if(ler(K.filaOutro))net('Tem lançamentos de outro login guardados neste aparelho. Eles sobem quando essa pessoa entrar aqui de novo.');}
 function envia(){
   if(enviando||!usuario)return;var ks=Object.keys(fila);if(!ks.length){tentativas=0;mostraFaixa();return;}
-  enviando=true;var k=ks[0],op=fila[k];
+  enviando=true;var k=ks[0],op=fila[k];emVoo=op;
   executa(op).then(function(res){
-    enviando=false;var e=res&&res.error;
+    enviando=false;emVoo=null;var e=res&&res.error;
     if(e&&e.code==='23505'&&(op.t==='dias_fechados'||op.t==='cancelamentos'))e=null; /* já guardado antes */
     if(e&&permanente(e)){if(fila[k]&&fila[k].n===op.n)delete fila[k];salvaFila();
       if(window.console)console.error('[big-sync]',e);net('Seu acesso não pode salvar isso no banco ('+(e.code||e.message)+'). Ficou só neste aparelho.','#B3261E');envia();return;}
     if(e)throw e;
     if(fila[k]&&fila[k].n===op.n){delete fila[k];
-      if(op.juntou){var ck=op.t==='pdv_caixa'?'caixa':'geral';ultimo[ck]=canon(op.juntou);aplicaPDV();}}
+      if(op.t==='pdv_mesas'&&op.mesa){var mk=String(op.id);if(op.mesa.fim)delete ultimo.mesas[mk];else ultimo.mesas[mk]=canon(op.mesa.dados);aplicaPDV();
+        if(op.mesa.aviso&&window.__bigMesaAviso)try{window.__bigMesaAviso(mk,op.mesa.aviso,op.mesa.n);}catch(e2){}}
+      else if(op.juntou){var ck=op.t==='pdv_caixa'?'caixa':'geral';ultimo[ck]=canon(op.juntou);aplicaPDV();}}
     tentativas=0;salvaFila();if(aviso.cor!=='#B3261E')net('');envia();
   }).catch(function(err){
-    enviando=false;tentativas++;mostraFaixa();if(window.console)console.warn('[big-sync] vai tentar de novo',err);
+    enviando=false;emVoo=null;tentativas++;mostraFaixa();if(window.console)console.warn('[big-sync] vai tentar de novo',err);
     if(err&&/JWT|token/i.test(err.message||err.code||''))sb.auth.refreshSession().catch(function(){});
     clearTimeout(timer);timer=setTimeout(envia,Math.min(60000,1500*Math.pow(2,Math.min(tentativas,6))));
   });
@@ -125,7 +132,39 @@ function juntaGeral(meu,banco){
   (j.cancelados||[]).forEach(function(c){cs[canon(c)]=1;});(banco.cancelados||[]).forEach(function(c){if(!cs[canon(c)])j.cancelados.push(c);});
   var bv=banco.vendidos||{},jv=j.vendidos=j.vendidos||{},lim=new Date(Date.now()-40*864e5).toISOString().slice(0,10);Object.keys(bv).forEach(function(d){if(d<lim)return;var o=jv[d]=jv[d]||{};Object.keys(bv[d]||{}).forEach(function(k){o[k]=Math.max(o[k]||0,bv[d][k]||0);});});
   return j;}
+/* comanda: junta o que este aparelho fez com o que está no banco, olhando como a mesa estava antes (base).
+   Item que outro aparelho lançou fica; item que eu tirei sai; item que outro tirou (cancelou/fechou) sai.
+   Se a mesa foi fechada no caixa enquanto eu lançava, só os itens novos ficam, numa comanda nova. */
+function idsDe(m){var o={};((m&&m.itens)||[]).forEach(function(l){if(l&&l.id)o[l.id]=l;});return o;}
+var CAMPOS_MESA=['nome','garcom','abertaEm','conta','contaEm','servico','desc','pessoas','pags'];
+function juntaMesa(base,meu,banco){
+  var B=base?idsDe(base):{},M=idsDe(meu),K2=idsDe(banco);
+  if(!meu){ /* eu fechei/apaguei a mesa */
+    if(!banco)return {fim:true};
+    var sobra=(banco.itens||[]).filter(function(l){return !B[l.id];});
+    if(!sobra.length)return {fim:true};
+    var r=JSON.parse(JSON.stringify(banco));r.itens=sobra;r.conta=false;r.contaEm='';r.pags=[];
+    return {dados:r,aviso:'sobrou',n:sobra.length};}
+  if(!banco){
+    if(!base)return {dados:meu};
+    var novos=(meu.itens||[]).filter(function(l){return !B[l.id];});
+    if(!novos.length)return {fim:true};
+    var r2=JSON.parse(JSON.stringify(meu));r2.itens=novos;r2.conta=false;r2.contaEm='';r2.pags=[];
+    return {dados:r2,aviso:'fechada',n:novos.length};}
+  var j=JSON.parse(JSON.stringify(meu)),its=[];
+  (meu.itens||[]).forEach(function(l){if(B[l.id]&&!K2[l.id])return; /* outro aparelho tirou */
+    var x=JSON.parse(JSON.stringify(l)),o=K2[l.id];if(o&&o.env&&!x.env){x.env=true;x.hora=o.hora;x.por=o.por;}its.push(x);});
+  var chegou=0;(banco.itens||[]).forEach(function(l){if(!M[l.id]&&!B[l.id]){its.push(l);chegou++;}});
+  j.itens=its;
+  if(base)CAMPOS_MESA.forEach(function(f){if(canon(meu[f])===canon(base[f])&&f in banco)j[f]=JSON.parse(JSON.stringify(banco[f]));});
+  return {dados:j};}
 function executa(op){
+  if(op.t==='pdv_mesas'&&op.base!==undefined)return sb.from('pdv_mesas').select('dados').eq('id',op.id).maybeSingle().then(function(r){
+    if(r.error)return r;var banco=r.data&&r.data.dados;if(banco)limpa(banco);
+    var base=null;try{base=op.base?JSON.parse(op.base):null;}catch(e){}
+    var j=juntaMesa(base,op.apagar?null:op.dados,banco);op.mesa=j;
+    if(j.fim)return banco?sb.from('pdv_mesas').delete().eq('id',op.id):{error:null};
+    return sb.from('pdv_mesas').upsert({id:op.id,dados:j.dados});});
   if(op.t==='rpc_site')return sb.rpc('salvar_site',{dados:op.dados});
   if(op.t==='pdv_caixa'||op.t==='pdv_geral')return sb.from(op.t).select('dados').eq('id',1).maybeSingle().then(function(r){
     if(r.error)return r;var b=r.data&&r.data.dados,d=op.t==='pdv_caixa'?juntaCaixa(op.dados,b):juntaGeral(op.dados,b);
@@ -156,8 +195,8 @@ function mudou(tipo){
   c2=canon(p.geral);if(c2!==ultimo.geral&&pode('geral')){ultimo.geral=c2;enfileira('geral',{t:'pdv_geral',id:1,dados:p.geral});}
   c2=canon(p.caixa);if(c2!==ultimo.caixa&&pode('caixa')){ultimo.caixa=c2;enfileira('caixa',{t:'pdv_caixa',id:1,dados:p.caixa});}
   if(!pode('mesas'))return;
-  Object.keys(p.mesas).forEach(function(k){var cm=canon(p.mesas[k]);if(cm!==ultimo.mesas[k]){ultimo.mesas[k]=cm;enfileira('mesa:'+k,{t:'pdv_mesas',id:k,dados:p.mesas[k]});}});
-  Object.keys(ultimo.mesas).forEach(function(k){if(!(k in p.mesas)){delete ultimo.mesas[k];enfileira('mesa:'+k,{t:'pdv_mesas',id:k,apagar:true});}});
+  Object.keys(p.mesas).forEach(function(k){var cm=canon(p.mesas[k]);if(cm!==ultimo.mesas[k]){var b=ultimo.mesas[k]||'';ultimo.mesas[k]=cm;enfileira('mesa:'+k,{t:'pdv_mesas',id:k,dados:p.mesas[k],base:b});}});
+  Object.keys(ultimo.mesas).forEach(function(k){if(!(k in p.mesas)){var b=ultimo.mesas[k]||'';delete ultimo.mesas[k];enfileira('mesa:'+k,{t:'pdv_mesas',id:k,apagar:true,base:b});}});
 }
 /* guarda o dia fechado com todas as vendas, movimentos e cancelamentos */
 function arquivarDia(dia){if(!usuario||!pode('dias'))return;
@@ -714,6 +753,8 @@ window.BIG_SYNC={
       trocar:function(m){return sb.rpc('qr_trocar',{m:m}).then(function(r){if(r.error)throw r.error;if(r.data!=='ok')throw new Error(r.data);});}},
   chamados:{lista:chLista,atender:chAtender,ativo:function(){return chOk;},busca:function(){return chBusca(false);}},
   pendentes:function(){return Object.keys(fila).length;},
+  pendente:function(chave){return !!fila[chave];},
+  juntaMesa:juntaMesa,
   acessos:acessos,
   entrar:function(email,senha){return sb.auth.signInWithPassword({email:email,password:senha}).then(function(r){if(r.error)throw r.error;LS.set(K_EMAIL,email);LS.set(K_USO,String(Date.now()));return r.data;});},
   sairTodos:sairTodos,
