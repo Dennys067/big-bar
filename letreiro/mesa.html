@@ -9,82 +9,112 @@
 <link rel="icon" href="logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Condensed:wght@600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Condensed:wght@600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600&family=Yellowtail&display=swap" rel="stylesheet">
 <style>
-:root{--preto:#0B0B0B;--parede:#14110E;--ambar:#F5A51B;--ambar-tinta:#8E5508;--creme:#F1E8CF;--papel:#EADFC1;--tinta:#1B1713;--vermelho:#B3261E;
-  --f-letreiro:"Alfa Slab One","Rockwell Extra Bold",serif;--f-placa:"Barlow Condensed","Arial Narrow",sans-serif;--f-texto:"Barlow Semi Condensed","Arial Narrow",sans-serif}
-*{box-sizing:border-box}
+:root{
+  /* ===== IDENTIDADE VISUAL ===== */
+  --preto:#0B0B0B;          /* fundo do logo */
+  --parede:#14110E;         /* preto de parede pintada */
+  --ambar:#F5A51B;          /* âmbar do logo ("e Prosa", garrafas) */
+  --ambar-gasto:#E29B2C;    /* âmbar levemente desbotado, tinta de letreiro */
+  --ambar-tinta:#8E5508;    /* âmbar escuro para texto/carimbo sobre creme */
+  --creme:#F1E8CF;          /* letras "BIG BAR" */
+  --papel:#EADFC1;          /* parede creme / papel */
+  --tinta:#1B1713;          /* texto sobre creme */
+  --f-letreiro:"Alfa Slab One", "Rockwell Extra Bold", serif;
+  --f-pincel:"Yellowtail", cursive;
+  --f-placa:"Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-texto:"Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  /* ===== fim IDENTIDADE VISUAL ===== */
+
+  --foco:var(--ambar);
+  --grao-escuro:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .1  0 0 0 0 .08  0 0 0 0 .05  0 0 0 .9 -.32'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grao-claro:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .95  0 0 0 0 .91  0 0 0 0 .8  0 0 0 .8 -.36'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --gasto:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='360' height='360'><filter id='d' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.045 .5' numOctaves='3' seed='11' stitchTiles='stitch' result='a'/><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='1' seed='3' stitchTiles='stitch' result='b'/><feComposite in='a' in2='b' operator='arithmetic' k2='.8' k3='.35'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -14 0 0 0 10.3'/></filter><rect width='100%' height='100%' filter='url(%23d)'/></svg>");
+}
+*,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;min-height:100vh;background:var(--parede);color:var(--creme);font:500 1.05rem/1.4 var(--f-texto);
-  padding:env(safe-area-inset-top) 0 calc(1.5rem + env(safe-area-inset-bottom))}
-.wrap{max-width:30rem;margin:0 auto;padding:0 1rem}
-header{display:flex;align-items:center;gap:.9rem;padding:1rem 0 .6rem}
-header img{width:72px;height:72px;border-radius:50%;flex:none}
-header .num{font:2.6rem/1 var(--f-letreiro);color:var(--ambar);letter-spacing:.01em}
-header .num small{display:block;font:700 .95rem/1 var(--f-placa);color:var(--creme);letter-spacing:.2em;text-transform:uppercase;margin-bottom:.25rem}
-.botoes{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin:.6rem 0 1rem}
-.bt{appearance:none;border:0;border-radius:14px;padding:1.05rem .6rem .95rem;font:800 1.3rem/1.05 var(--f-placa);text-transform:uppercase;letter-spacing:.06em;
-  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.45rem;min-height:7.2rem;justify-content:center;touch-action:manipulation}
-.bt svg{width:2.3rem;height:2.3rem}
-.bt-garcom{background:var(--ambar);color:var(--preto);grid-column:1/-1;min-height:8rem;font-size:1.65rem}
-.bt-conta{background:var(--creme);color:var(--tinta)}
-.bt-atual{grid-column:1/-1;min-height:4.2rem;flex-direction:row;background:transparent;color:var(--creme);border:2px solid rgba(241,232,207,.35)}
-.bt:active{transform:scale(.98)}
-.bt[disabled]{opacity:.55;cursor:default}
-.aviso{border-radius:12px;padding:.85rem 1rem;margin:0 0 1rem;font-weight:600;display:none}
+body{margin:0;min-height:100vh;background:var(--papel);color:var(--tinta);font:400 1.1rem/1.45 var(--f-texto);padding-bottom:env(safe-area-inset-bottom)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background-image:var(--grao-escuro);background-size:240px;opacity:.55;mix-blend-mode:multiply}
+.topo{background:var(--preto);color:var(--creme);text-align:center;padding:calc(.7rem + env(safe-area-inset-top)) 1rem .7rem}
+.topo a{color:inherit;text-decoration:none;font:400 1.2rem/1 var(--f-letreiro);text-transform:uppercase;letter-spacing:.02em}
+.topo a i{font:400 1.35rem/1 var(--f-pincel);color:var(--ambar);text-transform:none;font-style:normal;margin-left:.2rem}
+.wrap{max-width:32rem;margin:0 auto;padding:1.2rem 1rem 0}
+.placa{position:relative;background:var(--parede) var(--grao-claro);background-size:240px;color:var(--creme);padding:1.7rem 1.6rem 1.4rem;box-shadow:8px 9px 0 rgba(27,23,19,.18)}
+.placa::before{content:"";position:absolute;inset:10px;border:2px solid rgba(241,232,207,.75);pointer-events:none}
+.placa::after{content:"";position:absolute;inset:16px;border:1px solid rgba(226,155,44,.7);pointer-events:none}
+.parafuso{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#9b9387,#4a453e 70%)}
+.parafuso.a{top:3px;left:3px}.parafuso.b{top:3px;right:3px}.parafuso.c{bottom:3px;left:3px}.parafuso.d{bottom:3px;right:3px}
+.placa-topo{display:flex;align-items:center;gap:.8rem;margin:0 0 .5rem;font:700 .85rem/1 var(--f-placa);text-transform:uppercase;letter-spacing:.28em;color:var(--ambar-gasto)}
+.placa-topo .linha{flex:1;height:2px;background:currentColor;opacity:.6}
+.placa h1{margin:0;font-weight:400;line-height:1}
+.placa h1 .m{display:block;white-space:nowrap;font:400 min(14vw,4.8rem)/.95 var(--f-letreiro);text-transform:uppercase;color:var(--creme);text-shadow:.045em .05em 0 var(--ambar-gasto);-webkit-mask-image:var(--gasto);mask-image:var(--gasto);-webkit-mask-size:360px;mask-size:360px;padding-top:.06em}
+.placa h1 .s{display:block;font:400 clamp(2.4rem,12vw,3.4rem)/.9 var(--f-pincel);color:var(--ambar);margin:-.05em 0 0 38%;transform:rotate(-5deg);transform-origin:left center;text-shadow:.03em .035em 0 #000}
+.placa-pe{margin:1rem 0 0;padding-top:.7rem;border-top:2px solid rgba(241,232,207,.5);font:600 .95rem/1.2 var(--f-placa);text-transform:uppercase;letter-spacing:.16em;color:rgba(241,232,207,.85)}
+.chamar{appearance:none;width:100%;margin:1.6rem 0 .3rem;display:flex;align-items:center;justify-content:center;gap:.8rem;background:var(--ambar);color:var(--preto);border:3px solid var(--preto);box-shadow:6px 6px 0 var(--preto);
+  font:400 min(6.6vw,1.75rem)/1 var(--f-letreiro);white-space:nowrap;text-transform:uppercase;letter-spacing:.02em;padding:1.35rem .8rem 1.25rem;cursor:pointer;touch-action:manipulation}
+.chamar svg{width:2.1rem;height:2.1rem;flex:none}
+.chamar:active{transform:translate(3px,3px);box-shadow:3px 3px 0 var(--preto)}
+.chamar[disabled]{opacity:.6}
+.dica-chamar{margin:.6rem 0 0;text-align:center;font:600 .95rem/1.3 var(--f-placa);text-transform:uppercase;letter-spacing:.12em;color:var(--ambar-tinta)}
+.aviso{display:none;margin:1.3rem auto 0;width:fit-content;max-width:100%;text-align:center;color:var(--ambar-tinta);font:800 1.05rem/1.2 var(--f-placa);text-transform:uppercase;letter-spacing:.12em;padding:.6em 1em .55em;border:3px solid currentColor;box-shadow:inset 0 0 0 3px var(--papel),inset 0 0 0 5px currentColor;transform:rotate(-2deg)}
 .aviso.on{display:block}
-.aviso.ok{background:#1f3a1d;color:#d9f2cf;border:2px solid #4c8a3f}
-.aviso.info{background:#2a2216;color:var(--creme);border:2px solid var(--ambar)}
-.aviso.erro{background:#3a1715;color:#ffd9d3;border:2px solid var(--vermelho)}
-.comanda{background:var(--papel);color:var(--tinta);border-radius:6px;padding:1.1rem 1rem 1rem;box-shadow:0 10px 30px rgba(0,0,0,.45);position:relative}
-.comanda:before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px;
-  background:radial-gradient(circle at 8px 8px,var(--parede) 6px,transparent 6.5px) -8px 0/16px 16px repeat-x}
-.comanda h2{margin:0 0 .2rem;font:1.35rem/1.1 var(--f-letreiro);color:var(--ambar-tinta)}
-.comanda .sub{margin:0 0 .8rem;font-size:.95rem;color:#5a4f40}
-.linhas{list-style:none;margin:0;padding:0;border-top:2px dashed #b9a97f}
-.linhas li{display:grid;grid-template-columns:2.4rem 1fr auto;gap:.4rem;padding:.55rem 0;border-bottom:1px dashed #cdbf98;align-items:baseline}
-.linhas .q{font:800 1.1rem/1 var(--f-placa)}
-.linhas .n{font-weight:600}
-.linhas .n small{display:block;font-weight:500;color:#5a4f40}
-.linhas .v{font:700 1.05rem/1 var(--f-placa);white-space:nowrap}
-.tot{margin:.8rem 0 0;display:grid;grid-template-columns:1fr auto;gap:.25rem .5rem;font-weight:600}
-.tot .grande{font:1.6rem/1.1 var(--f-letreiro);color:var(--tinta);padding-top:.35rem;border-top:2px solid var(--tinta);margin-top:.3rem}
-.vazio{padding:1rem 0 .4rem;text-align:center;color:#5a4f40}
-.rodape{margin:1rem 0 0;text-align:center;font-size:.9rem;color:rgba(241,232,207,.7)}
-.rodape a{color:var(--ambar)}
-.carregando{opacity:.6}
-@media (prefers-reduced-motion:no-preference){.bt{transition:transform .08s}}
+.aviso.ok{color:#2f6b2a}
+.aviso.erro{color:var(--vermelho)}
+.comanda{margin:1.8rem -1rem 0;background:var(--parede) var(--grao-claro);background-size:240px;color:var(--creme);padding:1.6rem 1.2rem 1.4rem}
+.comanda .cab{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
+.faixa{display:inline-block;margin:0;background:var(--ambar-gasto);color:var(--preto);font:400 1.7rem/1 var(--f-letreiro);text-transform:uppercase;letter-spacing:.02em;padding:.3em .7em .25em .55em;clip-path:polygon(0 8%,3% 0,40% 5%,72% 0,100% 6%,98% 50%,100% 94%,64% 100%,30% 95%,0 100%,2% 50%)}
+.atual{appearance:none;background:none;border:2px solid var(--creme);color:var(--creme);font:700 .9rem/1 var(--f-placa);text-transform:uppercase;letter-spacing:.14em;padding:.65rem .85rem;cursor:pointer;display:flex;align-items:center;gap:.4rem;min-height:44px}
+.atual svg{width:1.1rem;height:1.1rem}
+.sub{margin:.8rem 0 .4rem;font:600 .95rem/1.3 var(--f-placa);text-transform:uppercase;letter-spacing:.14em;color:rgba(241,232,207,.7)}
+.lista{list-style:none;margin:0;padding:0}
+.it{display:grid;grid-template-columns:auto minmax(0,max-content) minmax(1rem,1fr) auto;column-gap:.5rem;align-items:baseline;padding:.65rem 0 .7rem;border-bottom:1px solid rgba(241,232,207,.14)}
+.it .q{font:800 1.2rem/1 var(--f-placa);color:var(--ambar-gasto);min-width:2.1ch}
+.it .n{font:700 1.2rem/1.15 var(--f-placa);text-transform:uppercase;letter-spacing:.04em}
+.it .pt{align-self:end;margin-bottom:.32em;border-bottom:3px dotted rgba(241,232,207,.4);min-width:1rem}
+.it .p{font:800 1.3rem/1 var(--f-placa);color:var(--ambar);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;text-align:right}
+.it .p small,.tot small{font-size:.62em;font-weight:700;letter-spacing:.06em;margin-right:.15em}
+.it .g{grid-column:2/-1;margin-top:.15rem;font:500 .98rem/1.3 var(--f-texto);color:rgba(241,232,207,.66)}
+.tot{margin:.9rem 0 0;display:grid;grid-template-columns:1fr auto;gap:.3rem .6rem;font:700 1.05rem/1.2 var(--f-placa);text-transform:uppercase;letter-spacing:.08em;color:rgba(241,232,207,.85)}
+.tot .v{text-align:right;font-variant-numeric:tabular-nums}
+.tot .grande{margin-top:.4rem;padding-top:.6rem;border-top:2px solid rgba(241,232,207,.5);font:400 1.7rem/1 var(--f-letreiro);color:var(--creme);letter-spacing:.01em}
+.tot .grande.v{color:var(--ambar)}
+.vazio{margin:1rem 0 .3rem;padding:1rem;border:2px dashed rgba(241,232,207,.45);text-align:center;font:700 1.05rem/1.3 var(--f-placa);text-transform:uppercase;letter-spacing:.08em;color:rgba(241,232,207,.8)}
+.rodape{margin:0 -1rem;background:var(--preto);color:rgba(241,232,207,.7);text-align:center;padding:1.2rem 1rem 1.6rem;font:600 .9rem/1.4 var(--f-placa);text-transform:uppercase;letter-spacing:.1em}
+.rodape a{display:inline-block;margin-top:.7rem;color:var(--creme);text-decoration:none;border-bottom:3px solid var(--ambar-gasto);padding-bottom:.15rem;font-weight:700;letter-spacing:.14em}
+.carregando .lista{opacity:.6}
+:focus-visible{outline:3px solid var(--ambar);outline-offset:3px}
 </style>
 </head>
 <body>
+<header class="topo"><a href="./">Big Bar<i>e Prosa</i></a></header>
 <div class="wrap">
-  <header>
-    <img src="logo.jpg" alt="Big Bar e Prosa">
-    <div class="num" id="titulo"><small>Sua mesa</small>…</div>
-  </header>
+  <section class="placa" aria-label="Sua mesa">
+    <span class="parafuso a"></span><span class="parafuso b"></span><span class="parafuso c"></span><span class="parafuso d"></span>
+    <p class="placa-topo"><span>Você está na</span><span class="linha"></span></p>
+    <h1 id="titulo"><span class="m">Mesa</span></h1>
+    <p class="placa-pe">Bebidas, amigos e boas histórias.</p>
+  </section>
+
+  <div id="botoes">
+    <button class="chamar" id="b-garcom" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      Chamar garçom
+    </button>
+    <p class="dica-chamar">Toque e o garçom vem até você</p>
+  </div>
 
   <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
-  <div class="botoes" id="botoes">
-    <button class="bt bt-garcom" id="b-garcom" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-      Chamar garçom
-    </button>
-    <button class="bt bt-atual" id="b-atual" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
-      Atualizar comanda
-    </button>
-  </div>
-
   <section class="comanda" id="comanda" aria-labelledby="c-tit">
-    <h2 id="c-tit">Sua comanda</h2>
+    <div class="cab"><h2 class="faixa" id="c-tit">Sua comanda</h2>
+      <button class="atual" id="b-atual" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Atualizar</button></div>
     <p class="sub" id="c-sub">Carregando…</p>
-    <ul class="linhas" id="c-linhas"></ul>
+    <ul class="lista" id="c-linhas"></ul>
     <div class="tot" id="c-tot"></div>
   </section>
 
-  <p class="rodape">Os valores são só para conferir. A conta é fechada com o garçom ou no caixa.<br>
-    <a href="./#cardapio">Ver o cardápio</a></p>
+  <footer class="rodape">Os valores são só para conferir.<br>A conta fecha com o garçom ou no caixa.<br><a href="./#cardapio">Ver o cardápio</a></footer>
 </div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
@@ -97,6 +127,7 @@ var q=new URLSearchParams(location.search),mesa=(q.get('m')||'').trim(),token=(q
 var $=function(id){return document.getElementById(id);};
 var BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 function R(c){return BRL.format((c||0)/100);}
+function P(c){return '<small>R$</small>'+((c||0)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function cent(v){if(typeof v==='number')return Math.round(v);v=String(v||'').trim().replace(/[^\d,\.]/g,'');if(!v)return 0;
   if(v.indexOf(',')>=0)v=v.replace(/\./g,'').replace(',','.');else if(!/^\d+\.\d{1,2}$/.test(v))v=v.replace(/\./g,'');
@@ -104,7 +135,7 @@ function cent(v){if(typeof v==='number')return Math.round(v);v=String(v||'').tri
 function pad(n){return (n<10?'0':'')+n;}
 function hora(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
 var nomeMesa=mesa==='balcao'?'Balcão':'Mesa '+mesa;
-$('titulo').innerHTML='<small>Você está na</small>'+esc(nomeMesa);
+$('titulo').innerHTML=mesa==='balcao'?'<span class="m">Balcão</span>':'<span class="m">Mesa '+esc(mesa)+'</span>';
 document.title=nomeMesa+' · Big Bar e Prosa';
 
 var tAviso=null;
@@ -120,24 +151,24 @@ function desenha(c){
   if(!c||c.erro){qrRuim();return;}
   var itens=c.itens||[];
   if(c.livre||!itens.length){
-    $('c-sub').textContent=c.livre?'Nenhum pedido lançado nesta mesa ainda.':'Mesa aberta às '+(c.aberta||'')+'. Nenhum pedido lançado ainda.';
-    $('c-linhas').innerHTML='';$('c-tot').innerHTML='<p class="vazio" style="grid-column:1/-1;margin:0">Peça ao garçom e o pedido aparece aqui.</p>';
+    $('c-sub').textContent=c.livre?'Nenhum pedido ainda':'Aberta às '+(c.aberta||'')+' · nenhum pedido ainda';
+    $('c-linhas').innerHTML='';$('c-tot').innerHTML='<p class="vazio" style="grid-column:1/-1">Peça ao garçom e o pedido aparece aqui</p>';
   }else{
     var sub=0;
     $('c-linhas').innerHTML=itens.map(function(l){
       var u=(+l.preco||0)+(l.adic||[]).reduce(function(s,a){return s+(+a.preco||0);},0),t=u*(+l.qtd||0);sub+=t;
       var ad=(l.adic||[]).map(function(a){return '+ '+esc(a.nome);}).join(', ');
-      return '<li><span class="q">'+esc(l.qtd)+'×</span><span class="n">'+esc(l.nome)+(ad?'<small>'+ad+'</small>':'')+'</span><span class="v">'+R(t)+'</span></li>';
+      return '<li class="it"><span class="q">'+esc(l.qtd)+'×</span><span class="n">'+esc(l.nome)+'</span><span class="pt"></span><span class="p">'+P(t)+'</span>'+(ad?'<span class="g">'+ad+'</span>':'')+'</li>';
     }).join('');
     var serv=c.servico?Math.round(sub*.1):0,d=c.desc||{},dv=cent(d.v),desc=d.t==='pct'?Math.round(sub*Math.min(dv,10000)/10000):dv;
     desc=Math.min(desc,sub+serv);var tot=sub+serv-desc,pes=Math.max(1,+c.pessoas||1);
-    var h='<span>Itens</span><span>'+R(sub)+'</span>';
-    if(serv)h+='<span>Serviço (10%)</span><span>'+R(serv)+'</span>';
-    if(desc)h+='<span>Desconto</span><span>− '+R(desc)+'</span>';
-    h+='<span class="grande">Total</span><span class="grande">'+R(tot)+'</span>';
-    if(pes>1)h+='<span>Dividido por '+pes+'</span><span>'+R(Math.ceil(tot/pes))+' cada</span>';
+    var h='<span>Itens</span><span class="v">'+R(sub)+'</span>';
+    if(serv)h+='<span>Serviço (10%)</span><span class="v">'+R(serv)+'</span>';
+    if(desc)h+='<span>Desconto</span><span class="v">− '+R(desc)+'</span>';
+    h+='<span class="grande">Total</span><span class="grande v">'+R(tot)+'</span>';
+    if(pes>1)h+='<span>Dividido por '+pes+'</span><span class="v">'+R(Math.ceil(tot/pes))+' cada</span>';
     $('c-tot').innerHTML=h;
-    $('c-sub').textContent=(c.aberta?'Aberta às '+c.aberta+'. ':'')+'Atualizado às '+hora()+'.';
+    $('c-sub').textContent=(c.aberta?'Aberta às '+c.aberta+' · ':'')+'atualizada às '+hora();
   }
   var ch=c.chamado||[];
   var esp=ch.filter(function(x){return x.tipo==='garcom';}).length,cta=ch.filter(function(x){return x.tipo==='conta';}).length;
