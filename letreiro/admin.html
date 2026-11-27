@@ -1169,7 +1169,7 @@ function rota(){
   document.querySelectorAll('[data-aba]').forEach(function(a){if(a.dataset.aba===ab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   rolarAba();
   if(h!=='caixa'&&h!=='conta')ultimaVenda=h==='caixa'?ultimaVenda:null;
-  ({perfil:renderPerfil,inicio:renderInicio,cardapio:renderCardapio,horarios:renderHorarios,shows:renderShows,infos:renderInfos,mesas:renderMesas,cfgmesas:function(){if(typeof renderCfgMesas==='function')renderCfgMesas();},mesa:function(){renderMesa(arg);},caixa:renderCaixa,conta:function(){renderConta(arg);},fechamento:renderFechamento,equipe:renderEquipe,financeiro:function(){if(typeof renderFin==='function')renderFin(arg);}}[h]||function(){})();
+  ({perfil:renderPerfil,inicio:renderInicio,cardapio:renderCardapio,horarios:renderHorarios,shows:renderShows,infos:renderInfos,mesas:renderMesas,cfgmesas:function(){if(typeof renderCfgMesas==='function'){if(QR.erro){QR.erro='';QR.lista=null;}renderCfgMesas();}},mesa:function(){renderMesa(arg);},caixa:renderCaixa,conta:function(){renderConta(arg);},fechamento:renderFechamento,equipe:renderEquipe,financeiro:function(){if(typeof renderFin==='function')renderFin(arg);}}[h]||function(){})();
   if(rota.primeira){var hh=document.getElementById('h-'+h);if(hh)hh.focus({preventScroll:true});window.scrollTo(0,0);}
   rota.primeira=true;
 }
@@ -2336,7 +2336,8 @@ function qrCarrega(){if(QR.carregando)return;
 function renderCfgMesas(){
   var inp=document.getElementById('qr-qtd');if(document.activeElement!==inp)inp.value=qtdMesas();
   var g=document.getElementById('qr-grade'),av=document.getElementById('qr-aviso');
-  if(QR.erro){g.innerHTML='<li style="grid-column:1/-1" class="conta-aviso">'+esc(QR.erro)+'</li>';return;}
+  document.querySelector('#t-cfgmesas .qr-bts').hidden=!!QR.erro||!QR.lista;
+  if(QR.erro){g.innerHTML='<li style="grid-column:1/-1" class="conta-aviso">'+esc(QR.erro)+' <button type="button" class="btn" id="qr-de-novo" style="margin-left:.5rem">Tentar de novo</button></li>';return;}
   if(!QR.lista){g.innerHTML='<li style="grid-column:1/-1;background:none;border:0">Carregando…</li>';qrCarrega();return;}
   var n=qtdMesas(),ls=QR.lista.filter(function(t){return t.ativo&&/^\d+$/.test(t.mesa)&&+t.mesa<=n;});
   g.innerHTML=ls.map(function(t){var nm=mesaNome(t.mesa);
@@ -2357,7 +2358,7 @@ document.getElementById('qr-qtd-form').addEventListener('submit',function(e){e.p
 document.getElementById('qr-grade').addEventListener('change',function(e){var m=e.target.dataset.qrMarca;if(m==null)return;QR.marcadas[m]=e.target.checked;
   var ls=(QR.lista||[]).filter(function(t){return t.ativo&&+t.mesa<=qtdMesas();});
   document.getElementById('qr-marcar').textContent=ls.every(function(t){return QR.marcadas[t.mesa];})?'Desmarcar todas':'Marcar todas';});
-document.getElementById('qr-grade').addEventListener('click',function(e){var b=e.target.closest('[data-qr-troca]');if(!b)return;var m=b.dataset.qrTroca;
+document.getElementById('qr-grade').addEventListener('click',function(e){if(e.target.id==='qr-de-novo'){QR.erro='';QR.lista=null;renderCfgMesas();return;}var b=e.target.closest('[data-qr-troca]');if(!b)return;var m=b.dataset.qrTroca;
   certeza(['Trocar o código da '+mesaNome(m)+'?','O QR Code impresso dessa mesa para de funcionar. Imprima o novo e troque na mesa.','Sim, trocar código'],function(){
     BIG_SYNC.qr.trocar(m).then(function(){QR.lista=null;QR.marcadas[m]=true;renderCfgMesas();toast('Código novo','Imprima o QR Code novo da '+mesaNome(m)+'.');},function(){toast('Não deu','Sem internet agora.',true);});});});
 document.getElementById('qr-marcar').addEventListener('click',function(){var ls=(QR.lista||[]).filter(function(t){return t.ativo&&+t.mesa<=qtdMesas();});
