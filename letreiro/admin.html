@@ -1035,7 +1035,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
       <h3 class="subtit">QR Codes das mesas</h3>
       <div class="qr-bts"><button class="btn" type="button" id="qr-marcar">Marcar todas</button><button class="btn ambar" type="button" id="qr-imp">Imprimir marcadas</button></div>
     </div>
-    <p class="dica" id="qr-aviso">O cliente aponta a câmera, vê a comanda, chama o garçom e pede a conta. Marque as mesas e toque em Imprimir (4 por folha A4, é só recortar).</p>
+    <p class="dica" id="qr-aviso">O cliente aponta a câmera, vê a comanda e chama o garçom. Marque as mesas e toque em Imprimir (4 por folha A4, é só recortar).</p>
     <ul class="qr-grade" id="qr-grade"></ul>
   </section>
 
@@ -2367,7 +2367,7 @@ document.getElementById('qr-imp').addEventListener('click',function(){
   var ls=(QR.lista||[]).filter(function(t){return t.ativo&&+t.mesa<=qtdMesas()&&QR.marcadas[t.mesa];});
   if(!ls.length){toast('Nenhuma mesa marcada','Marque as mesas que quer imprimir.',true);return;}
   var cart=ls.map(function(t){return '<div class="cartao"><div class="c-topo"><img src="logo.jpg" alt=""></div><div class="c-mesa"><small>MESA</small>'+esc(t.mesa)+'</div>'+
-    '<div class="c-qr">'+qrSvg(qrLink(t))+'</div><p class="c-cta">Aponte a câmera do celular</p><p class="c-lista">Veja sua comanda • Chame o garçom • Peça a conta</p></div>';});
+    '<div class="c-qr">'+qrSvg(qrLink(t))+'</div><p class="c-cta">Aponte a câmera do celular</p><p class="c-lista">Veja sua comanda • Chame o garçom</p></div>';});
   var h='';for(var i=0;i<cart.length;i+=4)h+='<div class="folha">'+cart.slice(i,i+4).join('')+'</div>';
   var box=document.getElementById('qr-imprimir');box.innerHTML=h;document.body.classList.add('qr-imprimindo');
   var imgs=[].slice.call(box.querySelectorAll('img'));
