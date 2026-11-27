@@ -1698,9 +1698,6 @@ function confereEnvio(m,nv){
     var q=Math.round(+l.qtd);if(!(q>=1)){r.erro=['Quantidade errada','Arrume a quantidade de '+l.nome+' ou tire da comanda.'];r.linha=l.id;return r;}
     if(q>99){r.erro=['Quantidade alta demais',q+' × '+l.nome+'? Diminua antes de enviar.'];r.linha=l.id;return r;}
     if(!(unit(l)>0)){r.erro=['Item sem preço',l.nome+' está sem valor. Tire e lance de novo.'];r.linha=l.id;return r;}
-    var inf=l.iid?infoItem(l.iid):null;
-    if(inf&&inf.i.esgotado){r.erro=[l.nome+' esgotou','Tire da comanda pra enviar o resto.'];r.linha=l.id;return r;}
-    if(l.combo){var gs=grupoEspeto(/sabor/i);if(gs&&gs.itens.some(function(x){return !x.esgotado;})&&!l.sabor){r.erro=['Falta o sabor','Escolha o sabor de '+l.nome+' antes de enviar.'];r.linha=l.id;return r;}}
   }
   var altos=nv.filter(function(l){return l.qtd>=QTD_ALTA;});
   if(altos.length)r.conferir.push('Quantidade alta: '+altos.map(function(l){return l.qtd+' × '+l.nome;}).join(', ')+'. Está certo?');
