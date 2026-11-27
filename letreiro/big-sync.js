@@ -252,7 +252,7 @@ function abrir(faltando){
 function fnDe(r){if(!r||r.papel==='dono'||!r.ativo||r.cadastro_ok===false)return '';
   if(nivelDe(r,'caixa')===2)return 'caixa';if(nivelDe(r,'mesas')===2)return 'garcom';return '';}
 function equipeDosLogins(lista){if(!window.__bigEquipeSync||!ehDono())return;
-  window.__bigEquipeSync((lista||[]).map(function(r){return {uid:r.user_id,nome:String(r.nome||'').trim(),fn:fnDe(r)};}).filter(function(x){return x.fn&&x.nome.length>1&&!/@/.test(x.nome);}));}
+  window.__bigEquipeSync((lista||[]).map(function(r){var fn=fnDe(r);return {uid:r.user_id,nome:String(r.nome||'').trim(),fn:fn,gc:fn==='caixa'&&nivelDe(r,'mesas')===2};}).filter(function(x){return x.fn&&x.nome.length>1&&!/@/.test(x.nome);}));}
 function sincEquipe(){if(!ehDono()||!window.__bigEquipeSync)return;
   sb.from('equipe_acesso').select('user_id,nome,papel,perms,ativo,cadastro_ok').then(function(r){if(!r.error)equipeDosLogins(r.data);},function(){});}
 function comecar(u,offline){

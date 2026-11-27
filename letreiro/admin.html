@@ -1083,7 +1083,7 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
 <div id="qr-imprimir" aria-hidden="true"></div>
 
 <script src="sb/supabase.js?v=cfaa3cbd"></script>
-<script src="big-sync.js?v=6c92ac70"></script>
+<script src="big-sync.js?v=93378db0"></script>
 <script>
 window.__bigApp=function(){
 'use strict';
@@ -1444,7 +1444,7 @@ function ocupada(m){return !!m&&(m.itens.length>0||ehAvulsa(m.id));}
 function mesaValida(idm){return (/^[1-9]\d?$/.test(idm)&&+idm<=qtdMesas())||idm==='balcao'||!!P.mesas[idm];}
 function pegaMesa(idm){var m=P.mesas[idm];if(!m){var pf=PF();m={id:idm,nome:'',garcom:ehGarcom(pf)?pf.nome:'',abertaEm:agora(),conta:false,contaEm:'',itens:[],servico:false,desc:{t:'rs',v:''},pessoas:1,pags:[]};P.mesas[idm]=m;}return m;}
 function limpaVazia(idm){var m=P.mesas[idm];if(m&&!m.itens.length&&!ehAvulsa(idm))delete P.mesas[idm];}
-function garcons(){return P.equipe.filter(function(p){return p.fn==='garcom';});}
+function garcons(){return P.equipe.filter(function(p){return p.fn==='garcom'||p.gc;});}
 function infoItem(iid){var r=null;S.cardapio.forEach(function(c){c.grupos.forEach(function(g){g.itens.forEach(function(i){if(i.id===iid)r={c:c,g:g,i:i};});});});return r;}
 function grupoEspeto(re){var e=null;S.cardapio.forEach(function(c){if(c.id!=='espetos')return;c.grupos.forEach(function(g){if(re.test(g.nome))e=g;});});return e;}
 function descLinha(l){var p=[];if(l.sabor)p.push('Sabor '+l.sabor);if(l.adic&&l.adic.length)p.push('+ '+l.adic.map(function(a){return a.nome;}).join(', '));return p.join(' · ');}
@@ -1897,7 +1897,7 @@ document.getElementById('fech-corpo').addEventListener('click',function(e){
 var eqFn='garcom';
 function renderEquipe(){if(window.BIG_SYNC)BIG_SYNC.acessos(document.getElementById('acessos'));
   document.getElementById('eq-lista').innerHTML=P.equipe.length?P.equipe.map(function(p){var nm=esc(p.nome);
-    return '<li class="eq-it" data-p="'+p.id+'"><span class="n">'+nm+'</span><span class="fn'+(p.fn==='caixa'?' cx':'')+'">'+(p.fn==='caixa'?'Caixa':'Garçom')+'</span>'+
+    return '<li class="eq-it" data-p="'+p.id+'"><span class="n">'+nm+'</span><span class="fn'+(p.fn==='caixa'?' cx':'')+'">'+(p.fn==='caixa'?(p.gc?'Caixa e garçom':'Caixa'):'Garçom')+'</span>'+
       (p.uid?'<span class="fn" title="Vem do login. Para tirar, mude as permissões em Acessos ao painel.">Login</span>':'<button class="acao apagar" type="button" data-acao="eq-apagar">Tirar<span class="vh"> '+nm+'</span></button>')+
       '<div class="certeza" hidden><p>Tirar '+nm+' da equipe? As vendas de hoje continuam no nome dele.</p><button class="btn perigo" type="button" data-acao="eq-apagar-sim">Sim, tirar</button><button class="btn claro" type="button" data-acao="eq-apagar-nao">Não</button></div></li>';
   }).join(''):'<li class="vazio-txt">Ninguém na equipe ainda.</li>';
@@ -2495,9 +2495,10 @@ window.__bigEquipe=function(ac){if(!P.equipe.some(function(p){return p.nome===ac
 /* dono: quem tem login de garçom (Comandas) ou de caixa entra sozinho na lista da equipe, ligado ao login */
 window.__bigEquipeSync=function(lista){var mudou=false,low=function(x){return String(x||'').trim().toLowerCase();};
   lista.forEach(function(ac){var p=P.equipe.filter(function(e){return e.uid===ac.uid;})[0]||P.equipe.filter(function(e){return !e.uid&&low(e.nome)===low(ac.nome);})[0];
-    if(!p){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.fn,uid:ac.uid});mudou=true;return;}
+    if(!p){P.equipe.push({id:id('p'),nome:ac.nome,fn:ac.fn,gc:!!ac.gc,uid:ac.uid});mudou=true;return;}
     if(p.uid!==ac.uid){p.uid=ac.uid;mudou=true;}
     if(p.fn!==ac.fn){p.fn=ac.fn;mudou=true;}
+    if(!!p.gc!==!!ac.gc){p.gc=!!ac.gc;mudou=true;}
     if(p.nome!==ac.nome){p.nome=ac.nome;mudou=true;}});
   if(mudou){gp();var t=document.getElementById('t-equipe');if(t&&!t.hidden)renderEquipe();}};
 /* ===== impressão térmica por setor (QZ Tray + ESC/POS em bytes, mesmo esquema da Arena) =====
