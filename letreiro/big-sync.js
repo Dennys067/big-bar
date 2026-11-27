@@ -14,6 +14,9 @@ window.BIG_REAL=true;
 /* link do convite ou de "esqueci a senha": guarda o tipo antes do Supabase limpar o endereço */
 var H=location.hash||'';
 var linkTipo=(H.match(/[#&]type=(invite|recovery)/)||[])[1]||'';
+/* convite novo: o link aponta para o painel (#convite=...) e só é gasto quando a pessoa toca no botão.
+   Assim o Gmail/WhatsApp, que abrem o link antes para checar ou fazer a prévia, não gastam o uso único. */
+var conv=(H.match(/[#&]convite=([A-Za-z0-9_-]{10,})/)||[])[1]||'',convTipo=(H.match(/[#&]tipo=(invite|recovery)/)||[])[1]||'invite';
 var linkErro=/[#&]error=/.test(H)?decodeURIComponent(((H.match(/error_description=([^&]+)/)||[])[1]||'').replace(/\+/g,' ')):'';
 var sb=window.BIG_SB_FAKE||supabase.createClient(SB_URL,SB_CHAVE,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}});
 
@@ -477,6 +480,7 @@ function acessos(el){
                       :'<button class="acao" type="button" data-acs="devolver">Desbloquear</button>'))+
         (aberto===p.user_id?'<div style="flex-basis:100%">'+editor(p)+'</div>':'')+'</li>';}).join('')||'<li class="vazio-txt">Ninguém ainda.</li>';}
   function mostraLink(r,erroTxt){var box=el.querySelector('#acs-link');box.hidden=false;
+    if(r&&r.link)r.link=linkSeguro(r.link);
     if(!r){box.innerHTML='<p class="acs-erro" role="alert">'+esc(erroTxt)+'</p>';return;}
     var oi='Oi'+(r.nome?', '+r.nome:'')+'! ';
     var msg=r.senha?oi+'Link pra criar uma senha nova no painel do Big Bar e Prosa: '+r.link:oi+'Seu convite pro painel do Big Bar e Prosa. Abra este link no celular, complete seu cadastro e crie sua senha: '+r.link+' (é só seu, não repasse).';
@@ -604,7 +608,28 @@ function sairTodos(){
 /* sem login: tira do HTML tudo que não é a tela de entrar (o painel só monta depois de entrar) */
 function esvazia(){document.querySelectorAll('.tela:not(#t-entrar)').forEach(function(t){t.innerHTML='';t.hidden=true;});var n=document.querySelector('nav.abas');if(n)n.innerHTML='';}
 function limpaLocal(){[K.pdv,K.fin,K.entrou,K.perfil,K.fila,K.filaDe,K.acesso].forEach(LS.del);}
-function inicio(){sb.auth.getSession().then(function(r){
+var PAINEL_URL='https://dennys067.github.io/big-bar/letreiro/admin.html';
+function linkSeguro(link){try{var u=new URL(link),t=u.searchParams.get('token'),ty=u.searchParams.get('type');
+  if(t&&/^[A-Za-z0-9_-]{10,}$/.test(t)&&/^(invite|recovery|magiclink|signup)$/.test(ty))return PAINEL_URL+'#convite='+t+'&tipo='+(ty==='recovery'?'recovery':'invite');}catch(e){}
+  return link;}
+function telaConvite(){
+  tiraCortina();
+  var c=caixaCentral(convTipo==='recovery'?'Criar senha nova':'Seu convite do Big','Toque no botão abaixo para abrir '+(convTipo==='recovery'?'a tela de senha nova.':'seu cadastro no painel do Big Bar e Prosa.'));
+  var er=document.createElement('p');er.setAttribute('role','alert');er.style.cssText='color:#FFB4A9;margin:8px 0 0;min-height:1.4em';
+  var bt=document.createElement('button');bt.type='button';bt.style.cssText=BTN;bt.textContent=convTipo==='recovery'?'Criar minha senha':'Abrir meu convite';
+  c.appendChild(er);c.appendChild(bt);
+  bt.onclick=function(){bt.disabled=true;bt.textContent='Abrindo…';er.textContent='';
+    sb.auth.verifyOtp({token_hash:conv,type:convTipo}).then(function(r){
+      if(r.error)throw r.error;var u=r.data&&(r.data.user||(r.data.session&&r.data.session.user));if(!u)throw new Error('sem login');
+      try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+      var f=c.parentNode;if(f)f.remove();limpaLocal();
+      if(convTipo==='recovery')telaSenha(u);else telaCadastro(u,true);
+    }).catch(function(err){var m=String(err&&(err.code||'')+' '+(err.message||''));
+      if(/expired|invalid|not.?found|otp|403/i.test(m)){var f=c.parentNode;if(f)f.remove();try{history.replaceState(null,'',location.pathname);}catch(e){}
+        caixaCentral('Link vencido','Esse link de acesso já foi usado ou venceu. Peça um novo ao dono do Big, ou toque em "Esqueci a senha" na tela de entrar.');return;}
+      bt.disabled=false;bt.textContent='Tentar de novo';er.textContent=erro(err);});};
+}
+function inicio(){if(conv){telaConvite();return;}sb.auth.getSession().then(function(r){
   var s=r&&r.data&&r.data.session;
   if(!s&&r&&r.error){var a=ler(K.acesso);if(a&&a.uid){acesso={papel:a.papel,nome:a.nome,perms:a.perms||{}};comecar({id:a.uid},true);mostraFaixa();return;}} /* sem internet pra renovar o login */
   if(!s){[K.pdv,K.fin,K.entrou,K.perfil,K.acesso].forEach(LS.del);LS.del(K_USO);abrir([]);esvazia();melhoraEntrar(); /* a fila fica: sobe no próximo login */
