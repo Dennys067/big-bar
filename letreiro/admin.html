@@ -792,6 +792,16 @@ html.perfil-fixo [data-acao="trocar-perfil"]{display:none!important}
   #qr-imprimir .c-cta{width:100%;white-space:nowrap;padding:0;margin:3mm 0 1.2mm;font:800 5mm/1 "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.4mm;color:#000}
   #qr-imprimir .c-lista{width:100%;white-space:nowrap;margin:0;padding:0;font:700 3.2mm/1 "Barlow Condensed",sans-serif;color:#8E5508;text-transform:uppercase}
 }
+/* toque no celular: o iPhone deixa o ":hover" preso no card que ficou embaixo do dedo depois que a tela se mexe,
+   parecendo que o item errado foi escolhido. Em tela de toque não usa hover; o item lançado pisca rapidinho. (28/11) */
+@media (hover:none){
+  .pick-it:hover{background:var(--creme)}
+  .pick-it:disabled:hover{background:transparent}
+  .passo button:hover{background:transparent;color:inherit}
+  .mesa-t:hover{outline:0}
+}
+@keyframes tocou{from{background:var(--ambar)}to{background:var(--creme)}}
+.pick-it.tocou{animation:tocou .6s ease-out}
 </style>
 </head>
 <body class="fora">
@@ -1471,7 +1481,8 @@ function manterFoco(fn,el){
     if(n){
       /* a tela não pula: o botão tocado fica no mesmo lugar, mesmo que a comanda cresça lá em cima (Safari não segura sozinho) */
       if(y0!=null){var d=n.getBoundingClientRect().top-y0;if(Math.abs(d)>1)window.scrollBy(0,d);}
-      if(!n.disabled)n.focus({preventScroll:true});}}
+      if(!n.disabled)n.focus({preventScroll:true});
+      if(el&&n.classList.contains('pick-it'))n.classList.add('tocou');}}
 }
 
 /* ---------- abas e cabeçalho por perfil ---------- */
