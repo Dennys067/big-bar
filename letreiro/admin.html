@@ -2450,14 +2450,23 @@ function chWav(){var sr=22050,dur=2.2,n=Math.floor(sr*dur),b=new ArrayBuffer(44+
       x+=env*(Math.sin(2*Math.PI*nt[1]*d)+.35*Math.sin(2*Math.PI*nt[1]*2*d)+.12*Math.sin(2*Math.PI*nt[1]*3*d));}});
     v.setInt16(44+i*2,Math.max(-1,Math.min(1,x*.62))*32767,true);}
   return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));}
-function chPrepara(){if(chSom)return;try{chSom=new Audio(chWav());chSom.preload='auto';}catch(e){chSom=null;}}
+var chUrl='',chMudo='';
+function chSilencio(){var n=2205,b=new ArrayBuffer(44+n*2),v=new DataView(b);function w(o,t){for(var i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));}
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,22050,true);v.setUint32(28,44100,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));}
+function chPrepara(){if(chSom)return;try{chUrl=chWav();chMudo=chSilencio();chSom=new Audio(chUrl);chSom.preload='auto';}catch(e){chSom=null;}}
 /* celular só libera som depois de um toque na tela: o primeiro toque "destrava" */
-function chDestrava(){chPrepara();if(!chSom||chSomOk)return;var v=chSom.volume;chSom.volume=0;
-  var p=chSom.play();if(p&&p.then)p.then(function(){chSom.pause();chSom.currentTime=0;chSom.volume=v||1;chSomOk=true;chEstado();},function(){chSom.volume=v||1;});
-  else{chSom.pause();chSom.volume=v||1;chSomOk=true;}}
+/* mudo de verdade (muted): no iPhone o volume não muda pelo site e o "destravar" tocava o plim a cada recarga */
+function chDestrava(){chPrepara();if(!chSom||chSomOk||chDestravando)return;chDestravando=true;
+  /* destrava tocando um som MUDO de 0,1 s (nunca o plim), e volta o plim depois */
+  chSom.muted=true;chSom.src=chMudo;
+  var t0=chTocouEm,fim=function(ok){if(chTocouEm===t0){try{chSom.pause();}catch(e){}chSom.src=chUrl;try{chSom.load();}catch(e){}}chSom.muted=false;chDestravando=false;if(ok){chSomOk=true;chEstado();}};
+  try{var p=chSom.play();if(p&&p.then)p.then(function(){fim(true);},function(){fim(false);});else fim(true);}catch(e){fim(false);}}
+var chDestravando=false,chTocouEm=0;
 ['pointerdown','touchend','keydown'].forEach(function(t){document.addEventListener(t,chDestrava,{passive:true});});
-function chToca(){chPrepara();
-  if(chSom){try{chSom.volume=1;chSom.currentTime=0;var p=chSom.play();if(p&&p.catch)p.catch(function(){});}catch(e){}}
+function chToca(){chPrepara();chTocouEm=Date.now();
+  if(chSom){try{if(chSom.src!==chUrl)chSom.src=chUrl;chSom.muted=false;chSom.volume=1;chSom.currentTime=0;var p=chSom.play();if(p&&p.catch)p.catch(function(){});}catch(e){}}
   if(navigator.vibrate)try{navigator.vibrate([400,150,400,150,800]);}catch(e){}
   var bar=document.getElementById('chamados');bar.classList.remove('pisca');void bar.offsetWidth;bar.classList.add('pisca');}
 function chTxt(c){return c.tipo==='conta'?'pediu a conta':'chamou o garçom';}
