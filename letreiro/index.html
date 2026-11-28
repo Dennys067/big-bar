@@ -272,6 +272,7 @@ a{color:inherit}
 }
 .retrato-chopp{width:min(220px,100%)}
 @media print{.cozinha,.fotos-bar,.foto-onde{display:none!important}}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -460,9 +461,9 @@ a{color:inherit}
     <div class="rotulo-caixa">
       <h2 id="tit-onde">Onde fica <span>o Big</span></h2>
       <dl>
-        <div class="linha"><dt>Endereço</dt><dd>Na antiga Adegas Beers, ao lado do Pet Shop Kamimura<small>[rua e número] · Deodápolis - MS</small></dd></div>
+        <div class="linha"><dt>Endereço</dt><dd>Na antiga Adegas Beers, ao lado do Pet Shop Kamimura<small>Deodápolis - MS</small></dd></div>
         <div class="linha"><dt>Horário</dt><dd>Ter a qui · 17h à meia-noite<br>Sex e sáb · 17h às 2h<br>Dom · 17h à meia-noite<br>Seg · fechado</dd></div>
-        <div class="linha"><dt>WhatsApp</dt><dd><a href="https://wa.me/" rel="noopener">[WhatsApp]</a><small>Reserva de mesa e informações</small></dd></div>
+        <div class="linha"><dt>WhatsApp</dt><dd><a href="https://wa.me/" rel="noopener"></a><small>Reserva de mesa e informações</small></dd></div>
         <div class="linha"><dt>Instagram</dt><dd><a href="https://instagram.com/bigbareprosa" rel="noopener">@bigbareprosa</a></dd></div>
       </dl>
     </div>
@@ -534,8 +535,11 @@ window.BIG_RENDER=function(d,B,doPainel){
   /* endereço */
   var inf=d.info,ref=inf.referencia||'',rua=inf.rua||'',cid=inf.cidade||'Deodápolis - MS';
   if(ps[0])ps[0].innerHTML='<span class="rotulo">Onde fica</span><span class="info">'+e(ref.replace(/^Na antiga Adegas Beers,\s*/i,'').replace(/^./,function(x){return x.toUpperCase();})||rua||'Deodápolis')+'<br>'+e(cid.replace(/\s*-\s*/,'-'))+'</span>';
-  var end=B.$('#onde .linha:nth-child(1) dd');if(end)end.innerHTML=e(ref)+'<small>'+(rua?e(rua):'[rua e número]')+' · '+e(cid)+'</small>';
-  var zap=B.$('#onde .linha:nth-child(3) dd a');if(zap)zap.textContent=inf.whatsapp?B.zap(inf.whatsapp):'[WhatsApp]';
+  var end=B.$('#onde .linha:nth-child(1) dd');if(end)end.innerHTML=e(ref)+'<small>'+(rua?e(rua)+' · ':'')+e(cid)+'</small>';
+  /* sem número cadastrado: esconde a linha e os botões do WhatsApp (antes aparecia "[WhatsApp]" e o botão não abria nada) */
+  var temZap=!!B.wa(inf.whatsapp);
+  var zap=B.$('#onde .linha:nth-child(3) dd a');if(zap){zap.textContent=temZap?B.zap(inf.whatsapp):'';zap.closest('.linha').hidden=!temZap;}
+  B.$$('a[href^="https://wa.me/"]').forEach(function(a){(a.closest('li')||a).hidden=!temZap;var br=a.nextElementSibling;if(br&&br.tagName==='BR')br.hidden=!temZap;});
   B.links(d);
 
   /* aviso do dia */
