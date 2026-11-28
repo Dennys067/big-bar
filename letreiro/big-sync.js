@@ -119,17 +119,33 @@ function envia(){
     clearTimeout(timer);timer=setTimeout(envia,Math.min(60000,1500*Math.pow(2,Math.min(tentativas,6))));
   });
 }
+/* cada caixa aberto ou dia encerrado ganha um "ger" (hora em que começou). Caixas de gerações diferentes não se
+   misturam: senão o dia já encerrado voltava inteiro pro caixa (e contava duas vezes) quando fechava no mesmo dia.
+   O que um aparelho atrasado fez depois que a geração nova começou (venda/movimento com ts maior) continua. */
+function ger(x,k){return +(x&&x[k||'ger'])||0;}
+function maisNovos(lista,g){return (lista||[]).filter(function(x){return x&&+x.ts>g;});}
 function juntaCaixa(meu,banco){
   if(!banco||!meu)return meu;
-  if(banco.data&&meu.data&&banco.data>meu.data)return banco; /* aparelho com caixa velho não volta o caixa do banco pra trás */
-  if(banco.data!==meu.data)return meu;
-  var j=JSON.parse(JSON.stringify(meu)),ids={};(j.vendas||[]).forEach(function(v){ids[v.id]=1;});
-  (banco.vendas||[]).forEach(function(v){if(!ids[v.id])j.vendas.push(v);});
-  var ms={};(j.movs||[]).forEach(function(m){ms[canon(m)]=1;});(banco.movs||[]).forEach(function(m){if(!ms[canon(m)])j.movs.push(m);});
+  var gm=ger(meu),gb=ger(banco),j;
+  if(gm!==gb){var novo=gm>gb?meu:banco,velho=gm>gb?banco:meu,g=Math.max(gm,gb);
+    j=JSON.parse(JSON.stringify(novo));j.vendas=j.vendas||[];j.movs=j.movs||[];
+    var ids={};j.vendas.forEach(function(v){ids[v.id]=1;});
+    maisNovos(velho.vendas,g).forEach(function(v){if(!ids[v.id])j.vendas.push(v);});
+    var ms={};j.movs.forEach(function(m){ms[canon(m)]=1;});maisNovos(velho.movs,g).forEach(function(m){if(!ms[canon(m)])j.movs.push(m);});
+    return j;}
+  if(!gm){
+    if(banco.data&&meu.data&&banco.data>meu.data)return banco; /* aparelho com caixa velho não volta o caixa do banco pra trás */
+    if(banco.data!==meu.data)return meu;}
+  j=JSON.parse(JSON.stringify(meu));var ids2={};(j.vendas||[]).forEach(function(v){ids2[v.id]=1;});
+  (banco.vendas||[]).forEach(function(v){if(!ids2[v.id])j.vendas.push(v);});
+  var ms2={};(j.movs||[]).forEach(function(m){ms2[canon(m)]=1;});(banco.movs||[]).forEach(function(m){if(!ms2[canon(m)])j.movs.push(m);});
   return j;}
 function juntaGeral(meu,banco){
   if(!banco||!meu)return meu;var j=JSON.parse(JSON.stringify(meu)),cs={};
-  (j.cancelados||[]).forEach(function(c){cs[canon(c)]=1;});(banco.cancelados||[]).forEach(function(c){if(!cs[canon(c)])j.cancelados.push(c);});
+  var gm=ger(meu,'cancGer'),gb=ger(banco,'cancGer');
+  if(gb>gm){j.cancGer=gb;j.cancelados=JSON.parse(JSON.stringify(banco.cancelados||[])).concat(maisNovos(meu.cancelados,gb));} /* o dia foi encerrado em outro aparelho */
+  var extra=gm>gb?maisNovos(banco.cancelados,gm):gb>gm?[]:(banco.cancelados||[]);
+  j.cancelados=j.cancelados||[];j.cancelados.forEach(function(c){cs[canon(c)]=1;});extra.forEach(function(c){if(!cs[canon(c)]){cs[canon(c)]=1;j.cancelados.push(c);}});
   var bv=banco.vendidos||{},jv=j.vendidos=j.vendidos||{},lim=new Date(Date.now()-40*864e5).toISOString().slice(0,10);Object.keys(bv).forEach(function(d){if(d<lim)return;var o=jv[d]=jv[d]||{};Object.keys(bv[d]||{}).forEach(function(k){o[k]=Math.max(o[k]||0,bv[d][k]||0);});});
   return j;}
 /* comanda: junta o que este aparelho fez com o que está no banco, olhando como a mesa estava antes (base).
@@ -182,7 +198,7 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden&&ini
 
 /* ---------- gravar ---------- */
 function partesPDV(P){
-  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[],vendidos:P.vendidos||{},qtdMesas:P.qtdMesas||20},caixa:P.caixa||{},mesas:P.mesas||{}};}
+  return {geral:{v:P.v||1,equipe:P.equipe||[],historico:P.historico||[],cancelados:P.cancelados||[],cancGer:P.cancGer||0,vendidos:P.vendidos||{},qtdMesas:P.qtdMesas||20},caixa:P.caixa||{},mesas:P.mesas||{}};}
 function mudou(tipo){
   if(!usuario||!iniciou)return;
   if(tipo==='site'||tipo==='fin'){if(!pode(tipo))return;var d=ler(K[tipo]);if(!d)return;if(tipo==='site')d=limpaSite(d);var c=canon(d);
@@ -226,7 +242,7 @@ function pendente(chave){return !!fila[chave];}
 function caixaVazio(){var d=new Date(),p=function(n){return (n<10?'0':'')+n;};return {data:d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()),aberto:false,abertoEm:'',abertoPor:'',troco:0,vendas:[],movs:[]};}
 function montaPDV(){if(ultimo.caixa==null&&ultimo.geral==null&&!Object.keys(ultimo.mesas).length)return null;
   var g={};try{g=JSON.parse(ultimo.geral||'{}');}catch(e){}
-  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[],vendidos:g.vendidos||{},qtdMesas:Math.min(99,Math.max(1,Math.round(+g.qtdMesas)||20))};
+  var P={v:g.v||1,equipe:g.equipe||[],mesas:{},caixa:null,historico:g.historico||[],cancelados:g.cancelados||[],cancGer:+g.cancGer||0,vendidos:g.vendidos||{},qtdMesas:Math.min(99,Math.max(1,Math.round(+g.qtdMesas)||20))};
   try{P.caixa=ultimo.caixa?JSON.parse(ultimo.caixa):caixaVazio();}catch(e){P.caixa=caixaVazio();}
   Object.keys(ultimo.mesas).sort().forEach(function(k){try{P.mesas[k]=JSON.parse(ultimo.mesas[k]);}catch(e){}});
   return P.caixa?P:null;}
